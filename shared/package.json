@@ -10,7 +10,10 @@
     "./projectMeta": "./projectMeta.ts",
     "./projects": "./projects.ts",
     "./projects.json": "./projects.json",
-    "./budget": "./budget.ts"
+    "./budget": "./budget.ts",
+    "./keystore": "./keystore.ts",
+    "./attestation": "./attestation.ts",
+    "./funding": "./funding.ts"
   },
   "dependencies": {
     "@bsv/sdk": "3.2.1"

@@ -6,7 +6,10 @@
  * `shared/projects.json` (addresses, which are public) is tracked.
  *
  * Node-only: this module touches the filesystem, so it must never be imported
- * from `web/`. It is deliberately not re-exported from `@upstream/shared`.
+ * from `web/`. It is reachable as `@upstream/shared/keystore` but deliberately
+ * NOT re-exported from the `@upstream/shared` root, so bundling the web app can
+ * never pull `node:fs` in. The server reads it to learn agent ADDRESSES for the
+ * funding plan; it never sends private keys anywhere.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -14,7 +17,7 @@ import { fileURLToPath } from 'node:url'
 import { PrivateKey } from '@bsv/sdk'
 
 /** Repo root, resolved from this file so scripts work from any cwd. */
-export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
+export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 export const KEYS_DIR = join(ROOT, 'keys')
 export const DATA_DIR = join(ROOT, 'data')
 

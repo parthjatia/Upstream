@@ -9,7 +9,7 @@ import {
   loadKeys,
   privateKeyOf,
   type KeyRecord
-} from './lib/keystore.ts'
+} from '@upstream/shared/keystore'
 
 const budget = loadBudget(process.env)
 

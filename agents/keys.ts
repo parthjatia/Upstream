@@ -24,7 +24,7 @@ import {
   ROOT,
   type AgentWithOwner,
   type KeyRecord
-} from './lib/keystore.ts'
+} from '@upstream/shared/keystore'
 
 const FILES = ['projects', 'lisa', 'swarm', 'whale', 'sybil'] as const
 
