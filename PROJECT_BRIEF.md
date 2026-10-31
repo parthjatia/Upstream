@@ -82,12 +82,22 @@ export function quadraticMatch(contribs: C[], pool: number) {
   const rows = [...byProject].map(([project, owners]) => {
     let sumSqrt = 0, raised = 0
     for (const s of owners.values()) { sumSqrt += Math.sqrt(s); raised += s }
-    return { project, raised, supporters: owners.size, gap: sumSqrt ** 2 - raised }
+    const raw = sumSqrt ** 2 - raised
+    return { project, raised, supporters: owners.size, gap: raw > GAP_EPSILON ? raw : 0 }
   })
   const totalGap = rows.reduce((a, r) => a + r.gap, 0)
-  return rows.map(r => ({ ...r, match: totalGap ? Math.floor((r.gap / totalGap) * pool) : 0 }))
+  return rows.map(r => ({
+    ...r,
+    match: totalGap > GAP_EPSILON ? Math.floor((r.gap / totalGap) * pool) : 0
+  }))
 }
 ```
+
+`Math.sqrt(s) ** 2 - s` is not exactly 0 for every `s` (5.68e-14 for 500,
+exactly 0 for 1,000), so `GAP_EPSILON = 1e-6` floors that residue away. Without
+it, a round in which every project has a single supporter divides the pool by
+rounding noise instead of paying nothing. The smallest real gap — two supporters
+of 1 sat each — is 2, so the floor cannot swallow genuine matching demand.
 
 ---
 

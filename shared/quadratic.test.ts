@@ -20,7 +20,7 @@ describe('quadraticMatch', () => {
     // (Σ√cᵢ)² === Σcᵢ, so there is no gap to subsidise.
     expect(by('whale').raised).toBe(50_000)
     expect(by('whale').supporters).toBe(1)
-    expect(by('whale').gap).toBeCloseTo(0, 6)
+    expect(by('whale').gap).toBe(0)
     expect(by('whale').match).toBe(0)
 
     // Crowd and medium raised the same 5,000, but 500 supporters beat 50.
@@ -71,25 +71,50 @@ describe('quadraticMatch', () => {
     expect(one.match).toBe(0)
   })
 
-  // Known edge case in the specified algorithm, documented rather than patched:
-  // `Math.sqrt(s) ** 2 - s` is not exactly 0 for every s (it is 5.68e-14 for
-  // 500, but exactly 0 for 1,000 and 50,000). When EVERY project has a single
-  // supporter, totalGap is nothing but that floating-point residue, and the
-  // pool is divided by rounding noise instead of staying unpaid. It cannot
-  // affect a round where any project has two or more supporters, because a real
-  // gap is ~1e19 times larger than the residue.
-  it('divides the pool by floating-point residue when every project has one supporter', () => {
-    const rows = quadraticMatch([{ project: 'a', owner: 'o', sats: 500 }], 100_000)
-    expect(rows).toHaveLength(1)
-    expect(rows[0]!.gap).toBeCloseTo(0, 6)
-    expect(rows[0]!.gap).not.toBe(0) // residue, not a real gap
-    expect(rows[0]!.match).toBe(100_000) // surprising, but harmless in a real round
+  // Floating-point residue is floored away: `Math.sqrt(s) ** 2 - s` is 5.68e-14
+  // for 500 sats and exactly 0 for 1,000, so without the guard a round where
+  // every project has one supporter divided the pool by rounding noise.
+  it('pays nothing when every project has a single supporter', () => {
+    for (const amount of [10, 500, 1_000, 50_000, 123_457]) {
+      const rows = quadraticMatch([{ project: 'a', owner: 'o', sats: amount }], 100_000)
+      expect(rows, `${amount} sats`).toHaveLength(1)
+      expect(rows[0]!.gap, `${amount} sats`).toBe(0)
+      expect(rows[0]!.match, `${amount} sats`).toBe(0)
+    }
   })
 
-  it('pays nothing when the residue is exactly zero', () => {
-    const rows = quadraticMatch([{ project: 'a', owner: 'o', sats: 1_000 }], 100_000)
-    expect(rows[0]!.gap).toBe(0)
-    expect(rows[0]!.match).toBe(0)
+  it('pays nothing across several single-supporter projects', () => {
+    const rows = quadraticMatch(
+      [
+        { project: 'a', owner: 'o1', sats: 500 },
+        { project: 'b', owner: 'o2', sats: 500 },
+        { project: 'c', owner: 'o3', sats: 20_000 }
+      ],
+      100_000
+    )
+    expect(rows.map(r => r.gap)).toEqual([0, 0, 0])
+    expect(rows.reduce((a, r) => a + r.match, 0)).toBe(0)
+  })
+
+  it('never reports a negative gap', () => {
+    const rows = quadraticMatch(
+      Array.from({ length: 40 }, (_, i) => ({ project: `p${i}`, owner: 'o', sats: i + 1 })),
+      100_000
+    )
+    for (const r of rows) expect(r.gap, r.project).toBeGreaterThanOrEqual(0)
+  })
+
+  it('still subsidises a genuine two-supporter gap, however small', () => {
+    // Two owners of 1 sat each: gap = (1+1)^2 - 2 = 2, far above GAP_EPSILON.
+    const rows = quadraticMatch(
+      [
+        { project: 'a', owner: 'o1', sats: 1 },
+        { project: 'a', owner: 'o2', sats: 1 }
+      ],
+      100_000
+    )
+    expect(rows[0]!.gap).toBeCloseTo(2, 9)
+    expect(rows[0]!.match).toBe(100_000)
   })
 
   it('ignores the residue as soon as one project has real support', () => {
