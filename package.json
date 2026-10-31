@@ -20,6 +20,7 @@
     "test-pay": "tsx --env-file-if-exists=.env agents/test-pay.ts",
     "server": "tsx --env-file-if-exists=.env server/src/index.ts",
     "test-tally": "tsx --env-file-if-exists=.env agents/test-tally.ts",
+    "lisa": "tsx --env-file-if-exists=.env agents/lisa.ts",
     "web": "vite web",
     "build:web": "vite build web",
     "test": "vitest run",
