@@ -8,9 +8,13 @@
  */
 import cors from 'cors'
 import express from 'express'
+import { committedSats, fundingPlan, loadBudget } from '@upstream/shared/budget'
 
 const PORT = Number(process.env.PORT ?? 8787)
 const ROUND = process.env.ROUND ?? 'round-1'
+
+// Fail fast on a bad .env rather than part-way through a mainnet transaction.
+const budget = loadBudget(process.env)
 
 const app = express()
 
@@ -23,8 +27,13 @@ app.get('/health', (_req, res) => {
     ok: true,
     service: 'upstream-server',
     round: ROUND,
-    network: process.env.BSV_NETWORK ?? 'testnet',
-    phase: 1
+    network: process.env.BSV_NETWORK ?? 'mainnet',
+    phase: 2,
+    budget: {
+      ...budget,
+      funding: fundingPlan(budget),
+      committed: committedSats(budget)
+    }
   })
 })
 

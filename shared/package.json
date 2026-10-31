@@ -9,7 +9,8 @@
     "./quadratic": "./quadratic.ts",
     "./projectMeta": "./projectMeta.ts",
     "./projects": "./projects.ts",
-    "./projects.json": "./projects.json"
+    "./projects.json": "./projects.json",
+    "./budget": "./budget.ts"
   },
   "dependencies": {
     "@bsv/sdk": "3.2.1"

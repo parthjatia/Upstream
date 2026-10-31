@@ -3,7 +3,7 @@
  * under-funded maintainer became everyone's security problem.
  *
  * This is the hand-written source of truth for ids, names and stories.
- * `npm run keys` merges generated testnet addresses into `shared/projects.json`;
+ * `npm run keys` merges generated mainnet addresses into `shared/projects.json`;
  * regenerating keys never loses what is written here.
  *
  * Display names end with "(demo)" — these are not the real packages.

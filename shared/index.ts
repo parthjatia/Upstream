@@ -4,6 +4,16 @@
  * Phase 4 adds the OP_RETURN helpers.
  */
 export { quadraticMatch, type C, type QuadraticRow } from './quadratic.ts'
+export {
+  BUDGET_DEFAULTS,
+  committedSats,
+  describeBudget,
+  fundingPlan,
+  loadBudget,
+  sats,
+  type Budget,
+  type FundingPlan
+} from './budget.ts'
 export { PROJECTS, PROJECT_IDS, PROJECTS_BY_ADDRESS, findProject } from './projects.ts'
 export { PROJECT_META, type ProjectMeta } from './projectMeta.ts'
 
@@ -13,7 +23,7 @@ export const DEFAULT_ROUND = 'round-1'
 /** Prefix of the OP_RETURN tag on every contribution: `UPSTREAM|<round>|<projectId>`. */
 export const OP_RETURN_PREFIX = 'UPSTREAM'
 
-/** A sponsored open-source project. Addresses are testnet; keys live in `keys/`. */
+/** A sponsored open-source project. Addresses are mainnet; keys live in `keys/`. */
 export interface Project {
   id: string
   name: string

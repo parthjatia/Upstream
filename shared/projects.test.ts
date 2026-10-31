@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { PROJECT_META } from './projectMeta.ts'
 import { PROJECTS, PROJECTS_BY_ADDRESS, findProject } from './projects.ts'
 
-/** Base58 testnet P2PKH addresses start with m or n (mainnet starts with 1). */
-const TESTNET_ADDRESS = /^[mn][1-9A-HJ-NP-Za-km-z]{25,34}$/
+/** Base58 mainnet P2PKH addresses start with 1 (testnet starts with m or n). */
+const MAINNET_ADDRESS = /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/
 
 describe('project registry (shared/projects.json)', () => {
   it('has the five demo projects named in PROJECT_BRIEF.md', () => {
@@ -27,9 +27,9 @@ describe('project registry (shared/projects.json)', () => {
     }
   })
 
-  it('carries a testnet address per project that builds a valid P2PKH lock', () => {
+  it('carries a mainnet address per project that builds a valid P2PKH lock', () => {
     for (const p of PROJECTS) {
-      expect(p.address, p.id).toMatch(TESTNET_ADDRESS)
+      expect(p.address, p.id).toMatch(MAINNET_ADDRESS)
       const script = new P2PKH().lock(p.address).toHex()
       // OP_DUP OP_HASH160 <20 bytes> OP_EQUALVERIFY OP_CHECKSIG
       expect(script, p.id).toMatch(/^76a914[0-9a-f]{40}88ac$/)

@@ -12,10 +12,32 @@ Unpaid maintainers are a security vulnerability: Heartbleed (OpenSSL, 2014), eve
 
 ## Hard rules (BSV track)
 - User-facing flows (funding agents, settling the round) go through a standard BSV wallet (BSV Desktop) via `WalletClient`. Never ask for a private key or recovery phrase.
-- Real transactions on BSV testnet. Agents broadcast through Arcade (https://arcade-v2-us-1.bsvblockchain.tech — check AGENTS.md / the guide for the testnet endpoint).
+- Real transactions on **BSV mainnet**. Agents broadcast through Arcade mainnet (`https://arcade-v2-us-1.bsvblockchain.tech`, headers at `/chaintracks/v2`). Explorer links are `https://whatsonchain.com/tx/<txid>`.
+- **Total budget is 200,000 sats and it is real money.** Every amount lives in `.env` (see Budget below) — never hard-code a satoshi figure. Contribution sizes are configurable.
 - Non-custodial: contributions go directly from agent to project; the sponsor pays matching from their own wallet at settlement. Nobody holds pooled funds.
 - At least one real AI agent (LLM with tool calling) makes payments.
 - Secrets (agent keys, LLM API key) live in `.env` / `keys/` which are gitignored. Never commit them. Commit `.env.example` instead.
+
+## Budget (200,000 sats, mainnet)
+
+| What | Env var | Amount |
+|---|---|---|
+| Lisa's agent | `FUND_LISA_SATS` | 5,000 |
+| Swarm: 50 agents x 1,500 | `SWARM_SIZE`, `FUND_SWARM_AGENT_SATS` | 75,000 |
+| Whale (one payment) | `FUND_WHALE_SATS` | 20,000 |
+| Attacker: 10 agents x 200 | `SYBIL_SIZE`, `FUND_SYBIL_AGENT_SATS` | 2,000 |
+| **Funding transaction total** | | **102,000** |
+| Sponsor matching pool (stays in BSV Desktop until settlement) | `SPONSOR_POOL_SATS` | 50,000 |
+| Buffer for fees and retries | | ~48,000 |
+| **Total** | `TOTAL_BUDGET_SATS` | **200,000** |
+
+Contribution sizes are configurable too: `CONTRIBUTION_SATS` (default 10) for
+ordinary agent payments and `WHALE_CONTRIBUTION_SATS` for the whale's single
+large one. The whale is funded 20,000 and contributes slightly less so its
+transaction can pay a fee.
+
+Code must read these from `.env` through `shared/budget.ts`, which validates
+that funding + pool stays within `TOTAL_BUDGET_SATS`.
 
 ## Architecture
 ```
@@ -79,20 +101,22 @@ export function quadraticMatch(contribs: C[], pool: number) {
 - **Commit:** `chore: scaffold monorepo`
 
 ### Phase 2 — Keys and projects
-- `npm run keys`: generate 5 project keys, 1 Lisa agent key, 100 swarm agent keys + 100 swarm owner keys, 1 whale agent + owner, 20 sybil agent keys. Save to `keys/*.json`. Write testnet addresses into `shared/projects.json`.
+- `npm run keys`: generate 5 project keys, 1 Lisa agent key, `SWARM_SIZE` (50) swarm agent keys + the same number of swarm owner keys, 1 whale agent + owner, `SYBIL_SIZE` (10) sybil agent keys. Save to `keys/*.json`. Write **mainnet** addresses into `shared/projects.json`.
+- Add `shared/budget.ts`: read every amount and count from `.env`, with the Budget table above as defaults, and refuse a budget whose funding + pool exceeds `TOTAL_BUDGET_SATS`.
 - Add `quadraticMatch` to `shared/` with a unit test: whale (1 owner × 50,000) vs crowd (500 owners × 10) vs medium (50 × 100) with pool 100,000 → crowd ≈ 91,000, medium ≈ 9,000, whale 0.
 - **Done when:** `npm test` passes and no key files are tracked by git (`git status`).
 - **Commit:** `feat: key generation, project registry, quadratic matching`
 
 ### Phase 3 — Fund agents from BSV Desktop (first real transaction)
-- Web page "Fund agents": connect BSV Desktop with `WalletClient`, then ONE `createAction` with a P2PKH output to every agent address (Lisa 20,000 sats; each swarm agent 2,000; whale 60,000; each sybil agent 1,000 — adjust to the test funds we have).
+- Web page "Fund agents": connect BSV Desktop with `WalletClient`, then ONE `createAction` with a P2PKH output to every agent address. Amounts come from `.env` via the server, never from hard-coded numbers: Lisa `FUND_LISA_SATS`, each swarm agent `FUND_SWARM_AGENT_SATS`, the whale `FUND_WHALE_SATS`, each sybil agent `FUND_SYBIL_AGENT_SATS` — 102,000 sats over 62 outputs at the default budget.
+- The server owns the funding plan (it can read `keys/`; the browser cannot): expose agent addresses and amounts for the web page to spend to.
 - Send the returned transaction (AtomicBEEF) to the server; server saves it to `data/funding.beef` and records which output index belongs to which agent.
-- Show the txid with a link to `https://test.whatsonchain.com/tx/<txid>`.
+- Show the txid with a link to `https://whatsonchain.com/tx/<txid>`.
 - **Done when:** the funding tx is visible on WhatsOnChain.
 - **Commit:** `feat: fund agents from BSV Desktop in one transaction`
 
 ### Phase 4 — Contribution hook
-- `agents/lib/contribute.ts`: spend the agent's current UTXO → output 1: P2PKH to the project (default 10 sats), output 2: OP_RETURN `UPSTREAM|<round>|<projectId>`, output 3: change back to the agent. `fee()`, `sign()`, broadcast via Arcade, then the change output becomes the agent's next UTXO (chain unconfirmed transactions). Persist each agent's latest UTXO to `data/`.
+- `agents/lib/contribute.ts`: spend the agent's current UTXO → output 1: P2PKH to the project (`CONTRIBUTION_SATS`, default 10), output 2: OP_RETURN `UPSTREAM|<round>|<projectId>`, output 3: change back to the agent. `fee()`, `sign()`, broadcast via Arcade, then the change output becomes the agent's next UTXO (chain unconfirmed transactions). Persist each agent's latest UTXO to `data/`.
 - Report each contribution to the server.
 - `paidTool(projectId, fn)` wrapper: pay first, then run `fn`.
 - Script `npm run test-pay`: one contribution from Lisa's agent to `tiny-tls`, print the WhatsOnChain link.
@@ -115,9 +139,9 @@ export function quadraticMatch(contribs: C[], pool: number) {
 - **Commit:** `feat: LLM agent paying per tool use`
 
 ### Phase 7 — Swarm, whale, sybil
-- `npm run swarm`: 100 agents in parallel, each loop: pick a tool (weighted so small libraries like `stream-utils` and `compress-lite` get most usage), contribute 10 sats, wait 0.5–2 s. Configurable duration.
-- `npm run whale`: one contribution of 50,000 sats to `tiny-tls`.
-- `npm run sybil`: 20 unsigned agents contribute to a fake project `totally-legit` → all rejected by the server.
+- `npm run swarm`: `SWARM_SIZE` (50) agents in parallel, each loop: pick a tool (weighted so small libraries like `stream-utils` and `compress-lite` get most usage), contribute 10 sats, wait 0.5–2 s. Configurable duration.
+- `npm run whale`: one contribution of `WHALE_CONTRIBUTION_SATS` to `tiny-tls`.
+- `npm run sybil`: `SYBIL_SIZE` (10) unsigned agents contribute to a fake project `totally-legit` → all rejected by the server.
 - **Done when:** swarm produces hundreds of txs, whale lands, sybil is rejected.
 - **Commit:** `feat: swarm, whale and sybil scripts`
 
