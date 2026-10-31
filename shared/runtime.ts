@@ -10,6 +10,8 @@
 export interface Runtime {
   /** True when transactions are built and signed but never broadcast. */
   dryRun: boolean
+  /** Port the tally server listens on (PORT). */
+  port: number
   /** Arcade base URL, used for broadcasting and headers. */
   arcadeUrl: string
   /** Explorer base for the links printed in logs and the UI. */
@@ -18,9 +20,15 @@ export interface Runtime {
   network: string
   /** Current funding round. */
   round: string
-  /** Where agents report contributions. */
+  /**
+   * Where agents report contributions (SERVER_URL). Defaults to localhost on
+   * `port`, so setting PORT alone is enough for a local run.
+   */
   serverUrl: string
 }
+
+/** The port used when PORT is unset. */
+export const DEFAULT_PORT = 8787
 
 export const ARCADE_MAINNET = 'https://arcade-v2-us-1.bsvblockchain.tech'
 export const EXPLORER_MAINNET = 'https://whatsonchain.com/tx/'
@@ -37,16 +45,33 @@ export function readDryRun(raw: string | undefined): boolean {
   throw new Error(`DRY_RUN="${raw}" is not a boolean (use true or false).`)
 }
 
+/** Parse PORT, refusing anything that is not a usable TCP port. */
+export function readPort(raw: string | undefined): number {
+  if (raw === undefined || raw.trim() === '') return DEFAULT_PORT
+  const value = raw.trim()
+  if (!/^\d+$/.test(value)) {
+    throw new Error(`PORT="${raw}" is not a number.`)
+  }
+  const port = Number(value)
+  if (port < 1 || port > 65_535) {
+    throw new Error(`PORT=${port} is outside the valid range 1-65535.`)
+  }
+  return port
+}
+
 type Env = Record<string, string | undefined>
 
 export function loadRuntime(env: Env = {}): Runtime {
+  const port = readPort(env.PORT)
+  const serverUrl = (env.SERVER_URL ?? `http://localhost:${port}`).replace(/\/$/, '')
   return {
     dryRun: readDryRun(env.DRY_RUN),
+    port,
     arcadeUrl: (env.ARCADE_URL ?? ARCADE_MAINNET).replace(/\/$/, ''),
     explorerTxUrl: env.EXPLORER_TX_URL ?? EXPLORER_MAINNET,
     network: env.BSV_NETWORK ?? 'mainnet',
     round: env.ROUND ?? 'round-1',
-    serverUrl: env.UPSTREAM_SERVER ?? `http://localhost:${env.PORT ?? 8787}`
+    serverUrl
   }
 }
 

@@ -19,11 +19,13 @@ import { P2PKH, PrivateKey, ProtoWallet, Script, Transaction } from '@bsv/sdk'
 import { signAgentAttestation } from '@upstream/shared/attestation'
 import { contributionScript } from '@upstream/shared/opreturn'
 import { loadBudget, sats } from '@upstream/shared/budget'
+import { loadRuntime } from '@upstream/shared/runtime'
 import { PROJECTS, findProject } from '@upstream/shared/projects'
 import type { TallyRow } from '@upstream/shared'
 
-const BASE = process.env.UPSTREAM_SERVER ?? `http://localhost:${process.env.PORT ?? 8787}`
-const ROUND = process.env.ROUND ?? 'round-1'
+const runtime = loadRuntime(process.env)
+const BASE = runtime.serverUrl
+const ROUND = runtime.round
 const budget = loadBudget(process.env)
 
 interface TallyResponse {

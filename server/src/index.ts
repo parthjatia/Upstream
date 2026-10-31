@@ -15,6 +15,7 @@ import cors from 'cors'
 import express from 'express'
 import { Transaction, Utils } from '@bsv/sdk'
 import { committedSats, fundingPlan, loadBudget } from '@upstream/shared/budget'
+import { loadRuntime } from '@upstream/shared/runtime'
 import { loadKeys } from '@upstream/shared/keystore'
 import type { FundingPlanResponse, FundingScope } from '@upstream/shared/funding'
 import { fundingSummaries, fundingTargets, recordFunding, totalSats } from './funding.ts'
@@ -34,12 +35,13 @@ import {
 import { addClient, clientCount, emit } from './events.ts'
 import { ensureDataDir } from './store.ts'
 
-const PORT = Number(process.env.PORT ?? 8787)
-const ROUND = process.env.ROUND ?? 'round-1'
-const NETWORK = process.env.BSV_NETWORK ?? 'mainnet'
-
 // Fail fast on a bad .env rather than part-way through a mainnet transaction.
+const runtime = loadRuntime(process.env)
 const budget = loadBudget(process.env)
+
+const PORT = runtime.port
+const ROUND = runtime.round
+const NETWORK = runtime.network
 ensureDataDir()
 
 const app = express()
@@ -312,5 +314,6 @@ function emitTally(): void {
 
 app.listen(PORT, () => {
   console.log(`upstream server listening on http://localhost:${PORT}  (round ${ROUND}, ${NETWORK})`)
+  console.log(`agents report to ${runtime.serverUrl} (SERVER_URL)`)
   console.log(`matching pool ${pool()} sats · ${allContributions().length} contribution(s) recorded`)
 })

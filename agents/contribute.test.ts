@@ -26,7 +26,7 @@ const { getUtxo, putUtxo, readUtxos, seedSyntheticFunding, synthesizeFunding, wr
   await import('./lib/utxos.ts')
 
 const budget = loadBudget({ SWARM_SIZE: '2', SYBIL_SIZE: '1' })
-const dryRun = loadRuntime({ DRY_RUN: 'true', UPSTREAM_SERVER: 'http://127.0.0.1:1' })
+const dryRun = loadRuntime({ DRY_RUN: 'true', SERVER_URL: 'http://127.0.0.1:1' })
 const project = PROJECTS[0]!
 
 const key = (label: string): KeyRecord => {

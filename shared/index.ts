@@ -18,10 +18,12 @@ export { PROJECTS, PROJECT_IDS, PROJECTS_BY_ADDRESS, findProject } from './proje
 export { PROJECT_META, type ProjectMeta } from './projectMeta.ts'
 export {
   ARCADE_MAINNET,
+  DEFAULT_PORT,
   EXPLORER_MAINNET,
   describeMode,
   loadRuntime,
   readDryRun,
+  readPort,
   type Runtime
 } from './runtime.ts'
 export {
