@@ -30,6 +30,7 @@ import {
   spendableBalance,
   type Connection
 } from './wallet'
+import { SettlementPanel } from './SettlementPanel'
 import './style.css'
 
 type Busy = null | 'connect' | 'lisa' | 'all' | 'attest' | 'actions'
@@ -332,6 +333,8 @@ export function App() {
           {busy === 'attest' ? 'Waiting for the wallet…' : "Sign Lisa's agent key"}
         </button>
       </section>
+
+      <SettlementPanel conn={conn} />
 
       {funded.length > 0 && (
         <section>
