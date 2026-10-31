@@ -1,11 +1,13 @@
 /**
  * Phase 3 — fund the agents from BSV Desktop.
  *
- * Mainnet, real money, so the order is deliberate: connect, smoke-test with
- * Lisa alone, then the full fan-out behind a confirmation that names the total.
- * All signing happens in BSV Desktop; this page never asks for a key.
+ * Mainnet, real money, so the order is deliberate: connect, check the wallet
+ * for unfinished actions, smoke-test with Lisa alone, then the full fan-out
+ * behind a confirmation that names the total. All signing happens in BSV
+ * Desktop; this page never asks for a key.
  */
 import { useCallback, useEffect, useState } from 'react'
+import type { WalletAction } from '@bsv/sdk'
 import { DEFAULT_ROUND } from '@upstream/shared'
 import { explorerTxUrl, type FundingRecord, type FundingScope } from '@upstream/shared/funding'
 import { sats } from '@upstream/shared/budget'
@@ -18,15 +20,24 @@ import {
   type Health,
   type LisaAgent
 } from './api'
-import { attestAgent, connect, spendableBalance, fundAgents, type Connection } from './wallet'
+import {
+  WalletCallError,
+  attestAgent,
+  connect,
+  fundAgents,
+  listFundingActions,
+  spendableBalance,
+  type Connection
+} from './wallet'
 import './style.css'
 
-type Busy = null | 'connect' | 'lisa' | 'all' | 'attest'
+type Busy = null | 'connect' | 'lisa' | 'all' | 'attest' | 'actions'
 
 interface LogLine {
   text: string
   txid?: string
   bad?: boolean
+  detail?: string
 }
 
 export function App() {
@@ -37,10 +48,26 @@ export function App() {
   const [busy, setBusy] = useState<Busy>(null)
   const [log, setLog] = useState<LogLine[]>([])
   const [funded, setFunded] = useState<FundingRecord[]>([])
+  const [actions, setActions] = useState<WalletAction[] | null>(null)
 
-  const say = useCallback((text: string, opts: { txid?: string; bad?: boolean } = {}) => {
+  const say = useCallback((text: string, opts: Omit<LogLine, 'text'> = {}) => {
     setLog(l => [{ text, ...opts }, ...l])
   }, [])
+
+  /** Log a wallet failure with everything we could recover about it. */
+  const sayFailure = useCallback(
+    (what: string, e: unknown) => {
+      if (e instanceof WalletCallError) {
+        console.error(`${what}\n${e.detail}`)
+        say(`${what}: ${e.message}`, { bad: true, detail: e.detail })
+      } else {
+        const msg = (e as Error).message
+        console.error(what, e)
+        say(`${what}: ${msg}`, { bad: true, detail: String((e as Error).stack ?? msg) })
+      }
+    },
+    [say]
+  )
 
   const refreshServer = useCallback(() => {
     void getHealth()
@@ -69,10 +96,18 @@ export function App() {
         )
       }
     } catch (e) {
-      say(`Could not connect: ${(e as Error).message}`, { bad: true })
+      sayFailure('Could not connect', e)
     } finally {
       setBusy(null)
     }
+  }
+
+  /** Report a transaction to the server; shared by the normal and salvage paths. */
+  const record = async (scope: FundingScope, txid: string, beefHex: string) => {
+    const saved = await postFunding({ scope, txid, beefHex })
+    setFunded(f => [saved, ...f.filter(r => r.txid !== saved.txid)])
+    say(`Server recorded ${saved.outputs.length} output(s) and saved ${saved.beefPath}.`)
+    refreshServer()
   }
 
   const doFund = async (scope: FundingScope) => {
@@ -108,26 +143,68 @@ export function App() {
 
       const description =
         scope === 'lisa' ? 'Fund Lisa agent (smoke test)' : 'Fund Upstream agents'
-      const { txid, beefHex, indexes } = await fundAgents(conn.wallet, plan.targets, description)
-      say(`Broadcast ${sats(plan.totalSats)} sats to ${plan.targets.length} agent(s).`, { txid })
 
-      const record = await postFunding({ scope, txid, beefHex })
-      setFunded(f => [record, ...f.filter(r => r.txid !== record.txid)])
-      say(`Server recorded ${record.outputs.length} output(s) and saved ${record.beefPath}.`)
+      try {
+        const { txid, beefHex, indexes } = await fundAgents(conn.wallet, plan.targets, description)
+        say(`Broadcast ${sats(plan.totalSats)} sats to ${plan.targets.length} agent(s).`, { txid })
+        await record(scope, txid, beefHex)
 
-      const missing = indexes.filter(i => i.index < 0)
-      if (missing.length > 0) {
-        say(`${missing.length} target(s) could not be located in the transaction.`, { bad: true })
+        const missing = indexes.filter(i => i.index < 0)
+        if (missing.length > 0) {
+          say(`${missing.length} target(s) could not be located in the transaction.`, { bad: true })
+        }
+      } catch (e) {
+        sayFailure('Funding failed', e)
+        // If the wallet signed before failing, the transaction may be real.
+        // Record it rather than risk funding the same agents twice.
+        if (e instanceof WalletCallError && e.salvaged !== null) {
+          say(
+            `The wallet produced transaction ${e.salvaged.txid} before failing — recording it so a retry cannot double-fund. Check the explorer link before retrying.`,
+            { bad: true, txid: e.salvaged.txid }
+          )
+          try {
+            await record(scope, e.salvaged.txid, e.salvaged.beefHex)
+          } catch (inner) {
+            say(`Could not record the salvaged transaction: ${(inner as Error).message}`, {
+              bad: true
+            })
+          }
+        }
+        void checkActions()
       }
 
       void spendableBalance(conn.wallet).then(b => setConn(c => (c ? { ...c, balance: b } : c)))
-      refreshServer()
     } catch (e) {
-      say(`Funding failed: ${(e as Error).message}`, { bad: true })
+      sayFailure('Funding failed', e)
     } finally {
       setBusy(null)
     }
   }
+
+  const checkActions = useCallback(async () => {
+    if (!conn) return
+    setBusy('actions')
+    try {
+      const { actions: found, stuck } = await listFundingActions(conn.wallet)
+      setActions(found)
+      if (found.length === 0) {
+        say('The wallet holds no labelled funding actions. Nothing is reserved; it is safe to retry.')
+      } else if (stuck.length === 0) {
+        say(`${found.length} funding action(s) in the wallet, none unfinished.`)
+      } else {
+        say(
+          `${stuck.length} unfinished funding action(s): ${stuck
+            .map(a => `${a.status} ${a.txid.slice(0, 12)}`)
+            .join(', ')}. Clear these in BSV Desktop before retrying.`,
+          { bad: true }
+        )
+      }
+    } catch (e) {
+      sayFailure('Could not list wallet actions', e)
+    } finally {
+      setBusy(null)
+    }
+  }, [conn, say, sayFailure])
 
   const onAttest = async () => {
     if (!conn || !lisa) return
@@ -139,7 +216,7 @@ export function App() {
       say(`BSV Desktop vouched for ${stored.label}; the server verified and saved the signature.`)
       refreshServer()
     } catch (e) {
-      say(`Signing failed: ${(e as Error).message}`, { bad: true })
+      sayFailure('Signing failed', e)
     } finally {
       setBusy(null)
     }
@@ -182,7 +259,47 @@ export function App() {
       </section>
 
       <section>
-        <h2>2 · Smoke test</h2>
+        <h2>2 · Wallet actions</h2>
+        <p className="muted">
+          Check whether the wallet is holding an unfinished funding action. An action left
+          <code> unsigned</code> or <code> failed</code> keeps its inputs reserved, so clear it
+          before retrying.
+        </p>
+        <button onClick={() => void checkActions()} disabled={!ready}>
+          {busy === 'actions' ? 'Asking the wallet…' : 'Check for stuck actions'}
+        </button>
+        {actions !== null && actions.length > 0 && (
+          <div className="scroll" style={{ marginTop: '1rem' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Txid</th>
+                  <th className="num">Sats</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                {actions.map(a => (
+                  <tr key={a.txid}>
+                    <td className={a.status === 'completed' ? 'ok' : 'bad'}>{a.status}</td>
+                    <td className="mono small">
+                      <a href={explorerTxUrl(a.txid)} target="_blank" rel="noreferrer">
+                        {a.txid.slice(0, 16)}…
+                      </a>
+                    </td>
+                    <td className="num">{sats(a.satoshis)}</td>
+                    <td className="small">{a.description}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h2>3 · Smoke test</h2>
         <p className="muted">
           Send only Lisa&rsquo;s agent its funding first. One output, one small amount — enough to
           prove the whole path works before spending the rest.
@@ -193,7 +310,7 @@ export function App() {
       </section>
 
       <section>
-        <h2>3 · Full fan-out</h2>
+        <h2>4 · Full fan-out</h2>
         <p className="muted">
           One transaction with an output for every agent, at the amounts in <code>.env</code>.
         </p>
@@ -203,7 +320,7 @@ export function App() {
       </section>
 
       <section>
-        <h2>4 · Vouch for Lisa&rsquo;s agent</h2>
+        <h2>5 · Vouch for Lisa&rsquo;s agent</h2>
         <p className="muted">
           BSV Desktop signs Lisa&rsquo;s agent public key, so the tally can count her as one real
           owner.
@@ -267,6 +384,12 @@ export function App() {
                     {l.txid}
                   </a>
                 </>
+              )}
+              {l.detail !== undefined && (
+                <details>
+                  <summary>Full wallet response</summary>
+                  <pre>{l.detail}</pre>
+                </details>
               )}
             </li>
           ))}
