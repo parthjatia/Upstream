@@ -13,7 +13,8 @@
     "./budget": "./budget.ts",
     "./keystore": "./keystore.ts",
     "./attestation": "./attestation.ts",
-    "./funding": "./funding.ts"
+    "./funding": "./funding.ts",
+    "./opreturn": "./opreturn.ts"
   },
   "dependencies": {
     "@bsv/sdk": "3.2.1"

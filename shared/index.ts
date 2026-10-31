@@ -16,6 +16,16 @@ export {
 } from './budget.ts'
 export { PROJECTS, PROJECT_IDS, PROJECTS_BY_ADDRESS, findProject } from './projects.ts'
 export { PROJECT_META, type ProjectMeta } from './projectMeta.ts'
+export {
+  TAG_PREFIX,
+  TAG_SEPARATOR,
+  contributionScript,
+  decodeTag,
+  encodeTag,
+  findContributionTag,
+  readTagFromScript,
+  type ContributionTag
+} from './opreturn.ts'
 
 /** Identifier of the current funding round, e.g. "round-1". */
 export const DEFAULT_ROUND = 'round-1'

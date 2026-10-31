@@ -3,11 +3,13 @@
  *
  * Phase 3: owns the funding plan (it is the only side that can read `keys/`),
  * records the funding transactions BSV Desktop broadcasts, and stores owner
- * attestations. It never holds, asks for, or returns a private key.
+ * attestations.
  *
- * Later phases add:
- *  - Phase 5 POST /contribution, GET /tally, POST /pledge, GET /events
- *  - Phase 9 POST /settlement
+ * Phase 5: verifies contributions against the raw transaction, runs quadratic
+ * matching over the verified ones, and streams events to the UI.
+ *
+ * It never holds, asks for, or returns a private key.
+ * Phase 9 adds POST /settlement.
  */
 import cors from 'cors'
 import express from 'express'
@@ -15,13 +17,21 @@ import { Transaction, Utils } from '@bsv/sdk'
 import { committedSats, fundingPlan, loadBudget } from '@upstream/shared/budget'
 import { loadKeys } from '@upstream/shared/keystore'
 import type { FundingPlanResponse, FundingScope } from '@upstream/shared/funding'
-import {
-  fundingSummaries,
-  fundingTargets,
-  recordFunding,
-  totalSats
-} from './funding.ts'
+import { fundingSummaries, fundingTargets, recordFunding, totalSats } from './funding.ts'
 import { AttestationError, allAttestations, saveAttestation } from './identity.ts'
+import {
+  ContributionError,
+  allContributions,
+  allRejected,
+  readPool,
+  storeContribution,
+  storeRejection,
+  tally,
+  verifyContribution,
+  writePool,
+  type ContributionReport
+} from './contributions.ts'
+import { addClient, clientCount, emit } from './events.ts'
 import { ensureDataDir } from './store.ts'
 
 const PORT = Number(process.env.PORT ?? 8787)
@@ -44,16 +54,25 @@ const isScope = (v: unknown): v is FundingScope => v === 'lisa' || v === 'all'
 /** Keys are read per request so `npm run keys` does not need a restart. */
 const keysOrFail = (): ReturnType<typeof loadKeys> => loadKeys()
 
+/** The pool defaults to the budget's pledge until the sponsor sets one. */
+const pool = (): number => readPool(budget.sponsorPoolSats)
+
 app.get('/health', (_req, res) => {
   res.json({
     ok: true,
     service: 'upstream-server',
     round: ROUND,
     network: NETWORK,
-    phase: 3,
+    phase: 5,
+    pool: pool(),
+    contributions: allContributions().length,
+    rejected: allRejected().length,
+    listeners: clientCount(),
     budget: { ...budget, funding: fundingPlan(budget), committed: committedSats(budget) }
   })
 })
+
+/* ------------------------------------------------------------------ Phase 3 */
 
 /**
  * The plan the browser spends to. Addresses and amounts only.
@@ -110,7 +129,14 @@ app.post('/funding', (req, res) => {
     }
 
     const targets = fundingTargets(keysOrFail(), budget, scope)
-    const record = recordFunding({ scope, round: ROUND, txid: txid.toLowerCase(), beefHex, tx, targets })
+    const record = recordFunding({
+      scope,
+      round: ROUND,
+      txid: txid.toLowerCase(),
+      beefHex,
+      tx,
+      targets
+    })
 
     console.log(
       `funded ${record.outputs.length} agent(s) with ${record.totalSats} sats · ${record.txid}`
@@ -182,6 +208,108 @@ app.get('/attestation', (_req, res) => {
   res.json(allAttestations())
 })
 
+/* ------------------------------------------------------------------ Phase 5 */
+
+/**
+ * Report a contribution.
+ *
+ * Valid → stored and a `contribution` event is emitted.
+ * Invalid → nothing is stored and a `rejected` event is emitted, which is how
+ * the sybil attack shows up in the galaxy.
+ */
+app.post('/contribution', (req, res) => {
+  void (async () => {
+    const report = (req.body ?? {}) as ContributionReport
+    try {
+      const verified = await verifyContribution(report, { round: ROUND, budget })
+      const { stored, isNew } = storeContribution(verified)
+
+      if (isNew) {
+        emit({
+          type: 'contribution',
+          project: stored.project,
+          owner: stored.owner,
+          sats: stored.sats,
+          txid: stored.txid
+        })
+        emitTally()
+        console.log(
+          `contribution ${stored.sats} sats → ${stored.project} · owner ${stored.owner.slice(0, 10)}… · ${stored.txid.slice(0, 12)}`
+        )
+      }
+      res.json({ ...stored, duplicate: !isNew })
+    } catch (err) {
+      const reason = (err as Error).message
+      const status = err instanceof ContributionError ? 400 : 500
+
+      // Keep the refusal, so the demo can show the attack being turned away.
+      let txid: string | null = null
+      try {
+        txid = Transaction.fromHex(report.rawTxHex).id('hex')
+      } catch {
+        txid = null
+      }
+      const rejection = storeRejection({
+        txid,
+        project: typeof report.projectId === 'string' ? report.projectId : null,
+        agent: typeof report.agentPubKey === 'string' ? report.agentPubKey : null,
+        reason,
+        createdAt: new Date().toISOString()
+      })
+
+      emit({
+        type: 'rejected',
+        project: rejection.project ?? 'unknown',
+        reason,
+        ...(txid !== null ? { txid } : {})
+      })
+      console.warn(`contribution rejected: ${reason}`)
+      res.status(status).json({ error: reason })
+    }
+  })()
+})
+
+app.get('/contribution', (_req, res) => {
+  res.json({ contributions: allContributions(), rejected: allRejected() })
+})
+
+/** The quadratic matching result for the current round. */
+app.get('/tally', (_req, res) => {
+  res.json(tally(ROUND, pool()))
+})
+
+/** The sponsor sets the matching pool. It stays in their wallet until Phase 9. */
+app.post('/pledge', (req, res) => {
+  const { pool: requested } = (req.body ?? {}) as Record<string, unknown>
+  if (typeof requested !== 'number' || !Number.isSafeInteger(requested) || requested < 0) {
+    res.status(400).json({ error: 'pool must be a whole number of satoshis, 0 or more' })
+    return
+  }
+  if (requested > budget.totalBudgetSats) {
+    res.status(400).json({
+      error: `pool ${requested} exceeds TOTAL_BUDGET_SATS=${budget.totalBudgetSats}`
+    })
+    return
+  }
+  const set = writePool(requested)
+  const result = tally(ROUND, set)
+  emit({ type: 'tally', pool: set, rows: result.rows })
+  console.log(`sponsor pledged ${set} sats`)
+  res.json(result)
+})
+
+/** Live stream for the UI. */
+app.get('/events', (req, res) => {
+  const remove = addClient(res)
+  req.on('close', remove)
+})
+
+function emitTally(): void {
+  const result = tally(ROUND, pool())
+  emit({ type: 'tally', pool: result.pool, rows: result.rows })
+}
+
 app.listen(PORT, () => {
   console.log(`upstream server listening on http://localhost:${PORT}  (round ${ROUND}, ${NETWORK})`)
+  console.log(`matching pool ${pool()} sats · ${allContributions().length} contribution(s) recorded`)
 })
