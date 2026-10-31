@@ -1,10 +1,11 @@
 /**
  * Shared surface for server, agents and web.
  *
- * Phase 1 defines only the contracts the other phases fill in:
- *  - Phase 2 adds quadraticMatch() and the generated project registry
- *  - Phase 4 adds the OP_RETURN helpers
+ * Phase 4 adds the OP_RETURN helpers.
  */
+export { quadraticMatch, type C, type QuadraticRow } from './quadratic.ts'
+export { PROJECTS, PROJECT_IDS, PROJECTS_BY_ADDRESS, findProject } from './projects.ts'
+export { PROJECT_META, type ProjectMeta } from './projectMeta.ts'
 
 /** Identifier of the current funding round, e.g. "round-1". */
 export const DEFAULT_ROUND = 'round-1'

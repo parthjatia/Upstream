@@ -6,6 +6,9 @@
   "description": "Types, project registry and quadratic matching shared by server, agents and web.",
   "exports": {
     ".": "./index.ts",
+    "./quadratic": "./quadratic.ts",
+    "./projectMeta": "./projectMeta.ts",
+    "./projects": "./projects.ts",
     "./projects.json": "./projects.json"
   },
   "dependencies": {

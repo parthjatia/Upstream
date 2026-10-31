@@ -14,6 +14,7 @@
     "web"
   ],
   "scripts": {
+    "keys": "tsx --env-file-if-exists=.env agents/keys.ts",
     "server": "tsx --env-file-if-exists=.env server/src/index.ts",
     "web": "vite web",
     "build:web": "vite build web",
