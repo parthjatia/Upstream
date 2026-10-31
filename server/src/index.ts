@@ -34,6 +34,7 @@ import {
 } from './contributions.ts'
 import { addClient, clientCount, emit } from './events.ts'
 import { ensureDataDir } from './store.ts'
+import { settlementRouter } from './settlementRoutes.ts'
 
 // Fail fast on a bad .env rather than part-way through a mainnet transaction.
 const runtime = loadRuntime(process.env)
@@ -300,6 +301,10 @@ app.post('/pledge', (req, res) => {
   console.log(`sponsor pledged ${set} sats`)
   res.json(result)
 })
+
+/* ------------------------------------------------------------------ Phase 9 */
+
+app.use(settlementRouter({ round: ROUND, network: NETWORK, serverDryRun: runtime.dryRun, pool }))
 
 /** Live stream for the UI. */
 app.get('/events', (req, res) => {
