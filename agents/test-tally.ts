@@ -99,7 +99,9 @@ async function contribute(
       projectId,
       agentPubKey: agentKey,
       ownerPubKey,
-      ownerSignature
+      ownerSignature,
+      // These are never broadcast, so they are dry-run whatever DRY_RUN says.
+      dryRun: true
     })
     return { ok: true, detail: `${stored.sats} sats · ${stored.txid.slice(0, 12)}` }
   } catch (err) {
@@ -240,8 +242,10 @@ async function main(): Promise<void> {
   await events
 }
 
+// process.exit() while an HTTP socket is still open aborts libuv on Windows,
+// so set the code and let the event loop drain.
 main().catch(err => {
   console.error(`\n${(err as Error).message}`)
   console.error('Is the server running? npm run server')
-  process.exit(1)
+  process.exitCode = 1
 })

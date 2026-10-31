@@ -15,6 +15,9 @@
   ],
   "scripts": {
     "keys": "tsx --env-file-if-exists=.env agents/keys.ts",
+    "seed-agents": "tsx --env-file-if-exists=.env agents/seed-agents.ts",
+    "import-funding": "tsx --env-file-if-exists=.env agents/import-funding.ts",
+    "test-pay": "tsx --env-file-if-exists=.env agents/test-pay.ts",
     "server": "tsx --env-file-if-exists=.env server/src/index.ts",
     "test-tally": "tsx --env-file-if-exists=.env agents/test-tally.ts",
     "web": "vite web",

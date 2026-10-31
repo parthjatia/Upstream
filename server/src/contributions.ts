@@ -27,6 +27,12 @@ export interface ContributionReport {
   agentPubKey: string
   ownerPubKey: string
   ownerSignature: string
+  /**
+   * True when the agent built and signed the transaction but did not broadcast
+   * it (DRY_RUN). Counted in the tally and labelled, so a dry run is never
+   * mistaken for settled money.
+   */
+  dryRun?: boolean
 }
 
 /** A verified, counted contribution. */
@@ -40,6 +46,8 @@ export interface StoredContribution {
   sats: number
   /** Index of the output paying the project, found by locking script. */
   outputIndex: number
+  /** True when this contribution was never broadcast. */
+  dryRun: boolean
   createdAt: string
 }
 
@@ -139,6 +147,7 @@ export async function verifyContribution(
     agent: agentPubKey,
     sats,
     outputIndex,
+    dryRun: report.dryRun === true,
     createdAt: new Date().toISOString()
   }
 }
@@ -179,6 +188,10 @@ export interface Tally {
   contributions: number
   owners: number
   rejected: number
+  /** How many counted contributions were never broadcast. */
+  dryRunContributions: number
+  /** True when every counted contribution is a dry run. */
+  dryRun: boolean
 }
 
 /** Run quadratic matching over the verified contributions. */
@@ -196,6 +209,8 @@ export function tally(round: string, pool: number): Tally {
     totalMatched: rows.reduce((a, r) => a + r.match, 0),
     contributions: verified.length,
     owners: new Set(verified.map(c => c.owner)).size,
-    rejected: allRejected().length
+    rejected: allRejected().length,
+    dryRunContributions: verified.filter(c => c.dryRun).length,
+    dryRun: verified.length > 0 && verified.every(c => c.dryRun)
   }
 }

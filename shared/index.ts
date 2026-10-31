@@ -17,6 +17,14 @@ export {
 export { PROJECTS, PROJECT_IDS, PROJECTS_BY_ADDRESS, findProject } from './projects.ts'
 export { PROJECT_META, type ProjectMeta } from './projectMeta.ts'
 export {
+  ARCADE_MAINNET,
+  EXPLORER_MAINNET,
+  describeMode,
+  loadRuntime,
+  readDryRun,
+  type Runtime
+} from './runtime.ts'
+export {
   TAG_PREFIX,
   TAG_SEPARATOR,
   contributionScript,
@@ -70,7 +78,15 @@ export interface TallyRow {
 
 /** Events pushed to the web UI over SSE at `GET /events`. */
 export type UpstreamEvent =
-  | { type: 'contribution'; project: string; owner: string; sats: number; txid: string }
+  | {
+      type: 'contribution'
+      project: string
+      owner: string
+      sats: number
+      txid: string
+      /** True when the transaction was signed but never broadcast. */
+      dryRun: boolean
+    }
   | { type: 'rejected'; project: string; reason: string; txid?: string }
   | { type: 'tally'; pool: number; rows: TallyRow[] }
   | { type: 'settled'; txid: string; rows: TallyRow[] }

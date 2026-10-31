@@ -14,7 +14,8 @@
     "./keystore": "./keystore.ts",
     "./attestation": "./attestation.ts",
     "./funding": "./funding.ts",
-    "./opreturn": "./opreturn.ts"
+    "./opreturn": "./opreturn.ts",
+    "./runtime": "./runtime.ts"
   },
   "dependencies": {
     "@bsv/sdk": "3.2.1"

@@ -230,11 +230,12 @@ app.post('/contribution', (req, res) => {
           project: stored.project,
           owner: stored.owner,
           sats: stored.sats,
-          txid: stored.txid
+          txid: stored.txid,
+          dryRun: stored.dryRun
         })
         emitTally()
         console.log(
-          `contribution ${stored.sats} sats → ${stored.project} · owner ${stored.owner.slice(0, 10)}… · ${stored.txid.slice(0, 12)}`
+          `contribution ${stored.sats} sats → ${stored.project} · owner ${stored.owner.slice(0, 10)}… · ${stored.txid.slice(0, 12)}${stored.dryRun ? ' (dry run)' : ''}`
         )
       }
       res.json({ ...stored, duplicate: !isNew })
