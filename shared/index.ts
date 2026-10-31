@@ -17,6 +17,25 @@ export {
 export { PROJECTS, PROJECT_IDS, PROJECTS_BY_ADDRESS, findProject } from './projects.ts'
 export { PROJECT_META, type ProjectMeta } from './projectMeta.ts'
 export {
+  RESULTS_VERSION,
+  SETTLEMENT_LABEL,
+  SETTLE_PREFIX,
+  SettlementError,
+  buildResults,
+  checkSettlementTx,
+  parseResults,
+  readSettlementScript,
+  resultsHash,
+  resultsJsonOf,
+  settlementDataScript,
+  settlementOutputs,
+  type ResultRow,
+  type RoundResults,
+  type RoundSummary,
+  type SettleableRow,
+  type SettlementOutput
+} from './settlement.ts'
+export {
   ARCADE_MAINNET,
   DEFAULT_PORT,
   EXPLORER_MAINNET,

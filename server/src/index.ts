@@ -8,8 +8,9 @@
  * Phase 5: verifies contributions against the raw transaction, runs quadratic
  * matching over the verified ones, and streams events to the UI.
  *
+ * Phase 9: the settlement routes, mounted from `settlementRoutes.ts`.
+ *
  * It never holds, asks for, or returns a private key.
- * Phase 9 adds POST /settlement.
  */
 import cors from 'cors'
 import express from 'express'
@@ -66,7 +67,7 @@ app.get('/health', (_req, res) => {
     service: 'upstream-server',
     round: ROUND,
     network: NETWORK,
-    phase: 5,
+    phase: 9,
     pool: pool(),
     contributions: allContributions().length,
     rejected: allRejected().length,

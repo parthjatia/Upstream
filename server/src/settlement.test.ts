@@ -22,7 +22,7 @@ const { previewSettlement, recordSettlement, allSettlements, SettlementError } =
   './settlement.ts'
 )
 const { readSettlementScript, settlementOutputs, resultsHash, checkSettlementTx } = await import(
-  './settlementCore.ts'
+  '@upstream/shared/settlement'
 )
 
 const ROUND = 'round-1'

@@ -1,11 +1,15 @@
 /**
  * Phase 9 — the settlement transaction, as pure functions.
  *
- * Browser-safe on purpose (no `node:` imports): the server uses it to build the
- * preview, and the web panel uses the SAME code to rebuild the outputs from the
- * results JSON before handing them to BSV Desktop. The browser therefore never
- * signs a locking script it merely received from the server — it signs what it
- * derived itself from the project registry and the results it can read.
+ * Lives in `shared/` because both sides need it and neither owns it: the server
+ * builds the preview with it, and the web panel uses the SAME code to rebuild
+ * the outputs from the results JSON before handing them to BSV Desktop. The
+ * browser therefore never signs a locking script it merely received from the
+ * server — it signs what it derived itself from the project registry and the
+ * results it can read.
+ *
+ * Browser-safe on purpose: no `node:` imports, so it is reachable from the
+ * package root and bundles cleanly.
  *
  * The settlement transaction is:
  *   - one P2PKH output per project with `match > 0`, to that project's address

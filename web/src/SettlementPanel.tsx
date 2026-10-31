@@ -19,7 +19,7 @@ import {
   checkSettlementTx,
   resultsHash,
   settlementOutputs
-} from '../../server/src/settlementCore'
+} from '@upstream/shared/settlement'
 import { WalletCallError, type Connection } from './wallet'
 import { describeWalletError, salvageTransaction, withWalletTap } from './walletErrors'
 

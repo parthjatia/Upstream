@@ -19,9 +19,9 @@ import {
   settlementOutputs,
   type RoundResults,
   type SettlementOutput
-} from './settlementCore.ts'
+} from '@upstream/shared/settlement'
 
-export { SettlementError } from './settlementCore.ts'
+export { SettlementError } from '@upstream/shared/settlement'
 
 /** What `GET /settlement/preview` returns. */
 export interface SettlementPreview {

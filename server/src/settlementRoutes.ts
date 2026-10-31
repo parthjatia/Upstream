@@ -15,7 +15,7 @@ import {
   previewSettlement,
   recordSettlement
 } from './settlement.ts'
-import { parseResults } from './settlementCore.ts'
+import { parseResults } from '@upstream/shared/settlement'
 
 export interface SettlementRouteOptions {
   round: string

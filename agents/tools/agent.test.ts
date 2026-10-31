@@ -18,7 +18,7 @@ afterAll(() => {
 })
 
 const { runLisa, createSession, systemPrompt } = await import('./agent.ts')
-const { loadLlmConfig, describeLlm } = await import('./llm.ts')
+const { loadLlmConfig, describeLlm, DEFAULT_MODELS } = await import('./llm.ts')
 const { writeUtxos, seedSyntheticFunding, getUtxo } = await import('../lib/utxos.ts')
 const { dryRunAttestation } = await import('../lib/dryRunOwners.ts')
 
@@ -63,11 +63,37 @@ describe('LLM config', () => {
 
   it('reads provider, key and model, and never shows the key', () => {
     const a = loadLlmConfig({ LLM_PROVIDER: 'anthropic', LLM_API_KEY: SECRET }, { dryRun: false })
-    expect(a).toMatchObject({ provider: 'anthropic', model: 'claude-opus-5-5', apiKey: SECRET })
+    expect(a).toMatchObject({ provider: 'anthropic', model: 'claude-sonnet-5-5', apiKey: SECRET })
     const o = loadLlmConfig({ LLM_PROVIDER: 'OpenAI', LLM_API_KEY: SECRET, LLM_MODEL: 'm' }, { dryRun: true })
     expect(o).toMatchObject({ provider: 'openai', model: 'm' })
     expect(describeLlm(a)).not.toContain(SECRET)
     expect(() => loadLlmConfig({ LLM_PROVIDER: 'gemini' }, { dryRun: true })).toThrow()
+  })
+
+  it('defaults anthropic to claude-sonnet-5-5 and openai to gpt-5', () => {
+    expect(DEFAULT_MODELS.anthropic).toBe('claude-sonnet-5-5')
+    expect(DEFAULT_MODELS.openai).toBe('gpt-5')
+    expect(
+      loadLlmConfig({ LLM_PROVIDER: 'openai', LLM_API_KEY: SECRET }, { dryRun: false }).model
+    ).toBe('gpt-5')
+  })
+
+  it('reads ONLY the LLM_* names, never a provider-specific alias', () => {
+    // Two ways to set the same thing is how a .env ends up running a model
+    // nobody chose, so the old names must have no effect at all.
+    expect(() =>
+      loadLlmConfig({ LLM_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: SECRET }, { dryRun: false })
+    ).toThrow(/LLM_API_KEY/)
+
+    const withOldModel = loadLlmConfig(
+      { LLM_PROVIDER: 'anthropic', LLM_API_KEY: SECRET, ANTHROPIC_MODEL: 'claude-sonnet-5' },
+      { dryRun: false }
+    )
+    expect(withOldModel.model).toBe('claude-sonnet-5-5')
+
+    expect(() =>
+      loadLlmConfig({ LLM_PROVIDER: 'openai', OPENAI_API_KEY: SECRET }, { dryRun: false })
+    ).toThrow(/LLM_API_KEY/)
   })
 })
 

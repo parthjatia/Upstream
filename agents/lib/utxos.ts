@@ -1,12 +1,25 @@
 /**
- * Each agent's current spendable output, persisted to `data/utxos.json`.
+ * Each agent's current spendable output, persisted to `data/utxos/<agent>.json`.
+ *
+ * ONE FILE PER AGENT, deliberately. The earlier design kept every agent in a
+ * single `data/utxos.json` and `putUtxo` rewrote the whole thing: read, modify,
+ * write. Inside one process that is safe, but `swarm`, `whale`, `lisa` and
+ * `sybil` are separate processes, so two writes could interleave and one would
+ * silently undo the other. An agent would then still be holding an output it
+ * had already spent — harmless in dry-run, a double spend Arcade rejects when
+ * live. With a file per agent, concurrent processes touch disjoint paths and
+ * cannot clobber each other.
+ *
+ * Writes are atomic: a temporary file in the same directory, then a rename.
+ * A concurrent reader sees either the old record or the new one, never a
+ * half-written file.
  *
  * An agent spends one output at a time and chains: the change of a contribution
  * becomes the input of the next, so a hundred contributions need one funding
  * output, not a hundred. Unconfirmed chaining is normal on BSV.
  *
- * A UTXO carries its source transaction hex when we have it, which is what lets
- * the SDK sign and script-verify without asking the network for anything.
+ * A UTXO carries its source transaction hex, which is what lets the SDK sign
+ * and script-verify without asking the network for anything.
  *
  * In dry-run the agents start from a synthetic funding transaction — fake coins,
  * real structure — so the whole flow runs end to end offline. Those records are
@@ -15,7 +28,15 @@
 import { P2PKH, PrivateKey, Transaction } from '@bsv/sdk'
 import type { Budget } from '@upstream/shared/budget'
 import { DATA_DIR, type KeyRecord, type KeyStore } from '@upstream/shared/keystore'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs'
 import { join } from 'node:path'
 
 /** One spendable output belonging to one agent. */
@@ -36,37 +57,129 @@ export interface AgentUtxo {
 }
 
 const dataDir = (): string => process.env.UPSTREAM_DATA_DIR ?? DATA_DIR
-const file = (): string => join(dataDir(), 'utxos.json')
 
-export function readUtxos(): Record<string, AgentUtxo> {
-  const path = file()
-  if (!existsSync(path)) return {}
+/** The per-agent directory. */
+export const utxoDir = (): string => join(dataDir(), 'utxos')
+
+/** Where every agent's record used to live, before the per-agent split. */
+const legacyFile = (): string => join(dataDir(), 'utxos.json')
+
+/**
+ * Agent labels become file names, so refuse anything that is not a plain label.
+ * Our own labels are like "swarm-agent-007"; this stops a crafted one escaping
+ * the directory.
+ */
+function fileFor(agent: string): string {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(agent)) {
+    throw new Error(`"${agent}" is not a usable agent label`)
+  }
+  return join(utxoDir(), `${agent}.json`)
+}
+
+/**
+ * Write a record atomically.
+ *
+ * The temporary file sits in the same directory so the rename stays on one
+ * filesystem and is therefore atomic. Node's rename replaces an existing
+ * destination on Windows as well as POSIX.
+ */
+function writeAtomic(path: string, body: string): void {
+  mkdirSync(utxoDir(), { recursive: true })
+  const tmp = `${path}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`
+  writeFileSync(tmp, body, 'utf8')
   try {
-    return JSON.parse(readFileSync(path, 'utf8')) as Record<string, AgentUtxo>
-  } catch {
-    return {}
+    renameSync(tmp, path)
+  } catch (err) {
+    rmSync(tmp, { force: true })
+    throw err
   }
 }
 
-export function writeUtxos(all: Record<string, AgentUtxo>): void {
-  mkdirSync(dataDir(), { recursive: true })
-  writeFileSync(file(), `${JSON.stringify(all, null, 2)}\n`, 'utf8')
+/**
+ * Split a legacy `data/utxos.json` into per-agent files, once.
+ *
+ * Called before any read so an existing demo keeps its balances instead of
+ * appearing to have lost them. The legacy file is renamed rather than deleted,
+ * so nothing is destroyed if the migration is wrong.
+ */
+export function migrateLegacyUtxos(): { migrated: number } {
+  const legacy = legacyFile()
+  if (!existsSync(legacy)) return { migrated: 0 }
+
+  let all: Record<string, AgentUtxo> = {}
+  try {
+    all = JSON.parse(readFileSync(legacy, 'utf8')) as Record<string, AgentUtxo>
+  } catch {
+    return { migrated: 0 }
+  }
+
+  let migrated = 0
+  for (const [agent, utxo] of Object.entries(all)) {
+    const path = fileFor(agent)
+    // Never overwrite a per-agent record: it is the newer of the two.
+    if (existsSync(path)) continue
+    writeAtomic(path, `${JSON.stringify({ ...utxo, agent }, null, 2)}\n`)
+    migrated++
+  }
+
+  renameSync(legacy, `${legacy}.migrated`)
+  return { migrated }
 }
 
-export const getUtxo = (agent: string): AgentUtxo | undefined => readUtxos()[agent]
+/** One agent's current output, or undefined if it holds none. */
+export function getUtxo(agent: string): AgentUtxo | undefined {
+  migrateLegacyUtxos()
+  const path = fileFor(agent)
+  if (!existsSync(path)) return undefined
+  try {
+    return JSON.parse(readFileSync(path, 'utf8')) as AgentUtxo
+  } catch {
+    // A torn read cannot happen through the atomic write, but a hand-edited
+    // file can still be broken; treat it as "no output" rather than crashing.
+    return undefined
+  }
+}
 
+/** Replace one agent's output. Touches only that agent's file. */
 export function putUtxo(utxo: AgentUtxo): void {
-  const all = readUtxos()
-  all[utxo.agent] = utxo
-  writeUtxos(all)
+  writeAtomic(fileFor(utxo.agent), `${JSON.stringify(utxo, null, 2)}\n`)
 }
 
 /** Remove an agent's output, e.g. once it is spent down to dust. */
 export function dropUtxo(agent: string): void {
-  const all = readUtxos()
-  // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-  delete all[agent]
-  writeUtxos(all)
+  rmSync(fileFor(agent), { force: true })
+}
+
+/**
+ * Every agent's output, for the seeding summary and `demo:check`.
+ *
+ * A snapshot, not a transaction: another process may write while this reads,
+ * so treat the result as "roughly now" and never write it back wholesale.
+ */
+export function readUtxos(): Record<string, AgentUtxo> {
+  migrateLegacyUtxos()
+  const dir = utxoDir()
+  if (!existsSync(dir)) return {}
+
+  const all: Record<string, AgentUtxo> = {}
+  for (const name of readdirSync(dir)) {
+    if (!name.endsWith('.json')) continue
+    const agent = name.slice(0, -'.json'.length)
+    const utxo = getUtxo(agent)
+    if (utxo !== undefined) all[agent] = utxo
+  }
+  return all
+}
+
+/**
+ * Replace every record. For tests and for a deliberate reset — never on the
+ * contribution path, where it would reintroduce the clobbering this file
+ * exists to prevent.
+ */
+export function writeUtxos(all: Record<string, AgentUtxo>): void {
+  rmSync(utxoDir(), { recursive: true, force: true })
+  mkdirSync(utxoDir(), { recursive: true })
+  for (const [agent, utxo] of Object.entries(all)) putUtxo({ ...utxo, agent })
 }
 
 /** Rebuild the source transaction an output came from. */
@@ -126,31 +239,27 @@ export function seedSyntheticFunding(
   budget: Budget
 ): { seeded: number; skipped: number; txid: string } {
   const { tx, utxos } = synthesizeFunding(keys, budget)
-  const all = readUtxos()
+  migrateLegacyUtxos()
   let seeded = 0
   let skipped = 0
 
   for (const utxo of utxos) {
-    if (all[utxo.agent] !== undefined) {
+    if (getUtxo(utxo.agent) !== undefined) {
       skipped++
       continue
     }
-    all[utxo.agent] = utxo
+    putUtxo(utxo)
     seeded++
   }
 
-  writeUtxos(all)
   return { seeded, skipped, txid: tx.id('hex') }
 }
 
 /** The agent's signing key, looked up by label. */
 export function findAgentKey(keys: KeyStore, label: string): KeyRecord | undefined {
-  return [
-    keys.lisa,
-    ...keys.swarm.map(s => s.agent),
-    keys.whale.agent,
-    ...keys.sybil
-  ].find(k => k.label === label)
+  return [keys.lisa, ...keys.swarm.map(s => s.agent), keys.whale.agent, ...keys.sybil].find(
+    k => k.label === label
+  )
 }
 
 /** Every agent key, with the owner that vouches for it where one exists. */

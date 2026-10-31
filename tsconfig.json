@@ -1,9 +1,22 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["node"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "node"
+    ],
     "jsx": "react-jsx"
   },
-  "include": ["shared", "server/src", "agents", "web/src", "test"]
+  "include": [
+    "shared",
+    "server/src",
+    "agents",
+    "web/src",
+    "scripts",
+    "test"
+  ]
 }

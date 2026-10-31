@@ -15,7 +15,8 @@
     "./attestation": "./attestation.ts",
     "./funding": "./funding.ts",
     "./opreturn": "./opreturn.ts",
-    "./runtime": "./runtime.ts"
+    "./runtime": "./runtime.ts",
+    "./settlement": "./settlement.ts"
   },
   "dependencies": {
     "@bsv/sdk": "3.2.1"

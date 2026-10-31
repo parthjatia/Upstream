@@ -48,13 +48,30 @@ AI agents now pull in open-source code more than people do, and they pay nothing
 | 3 | Fund all agents from BSV Desktop in one transaction, plus Lisa's owner attestation | done (web page, steps 1–5) |
 | 4 | Contribution hook (`contribute`, `paidTool`, `npm run test-pay`), DRY_RUN mode | done |
 | 5 | Tally server: verification, quadratic matching, pledge, SSE | done |
-| 6 | **Lisa's agent**: an LLM with tool calling that pays per tool use | *being built in a parallel session* |
-| 7 | **Swarm, whale and Sybil attacker scripts** | *being built in a parallel session* |
-| 8 | Galaxy UI (d3-force bubbles, live particles) | *not started* |
-| 9 | **Settlement** (one-click from BSV Desktop) and `npm run demo:check` | *being built in a parallel session* |
+| 6 | Lisa's agent: an LLM with tool calling that pays per tool use | done |
+| 7 | Swarm, whale and Sybil attacker scripts | done |
+| 8 | **Galaxy UI** (d3-force bubbles, live particles) | **not started** |
+| 9 | Settlement (one-click from BSV Desktop) and `npm run demo:check` | done |
 | 10 | Docs | this |
 
-The BSV Desktop wallet path is built but **blocked right now**, so everything runs with `DRY_RUN=true`. See [Going live](#going-live-checklist).
+Everything except the galaxy UI is built, and the whole demo runs end to end with
+`DRY_RUN=true`. Phase 8 is the one piece not started: the `/events` SSE stream
+already emits `contribution`, `rejected`, `tally` and `settled`, so the galaxy has
+a live feed to animate whenever it gets built.
+
+**Funding from the wallet is blocked.** BSV Desktop accepts the funding request
+and shows the right amount, then fails after approval with:
+
+```
+WERR_INTERNAL: Storage method processAction failed: merged Beef failed validation
+```
+
+That is raised inside the wallet, while it assembles the BEEF for the inputs *it*
+is spending — its own funds, not our outputs — so nothing in this app can work
+around it, and nothing is broadcast. The web page shows the message verbatim with
+what to try. Until it is resolved, fund with a manual Send plus
+`npm run import-funding <txid>`, or stay in dry-run. See
+[Going live](#going-live-checklist).
 
 ---
 
@@ -89,7 +106,23 @@ Every satoshi amount and count is read from `.env` through `shared/budget.ts`, a
 | `SPONSOR_POOL_SATS` | 50,000 | Default matching pool. It stays in the sponsor's wallet. |
 | `TOTAL_BUDGET_SATS` | 200,000 | Hard ceiling. |
 
-The LLM settings for Lisa's agent are being added by the Phase 6 session. Check `.env.example` once that branch is merged.
+#### Lisa's LLM
+
+Three names, and only these three — provider-specific aliases such as
+`ANTHROPIC_API_KEY` are deliberately not read, so there is one place to look when
+Lisa runs on the wrong model or cannot authenticate.
+
+| Var | Default | Meaning |
+|---|---|---|
+| `LLM_PROVIDER` | `anthropic` | `anthropic` or `openai`. |
+| `LLM_API_KEY` | — | That provider's key. Never printed, never logged, never committed. |
+| `LLM_MODEL` | `claude-sonnet-5-5` (anthropic), `gpt-5` (openai) | Optional override. |
+| `LISA_MAX_TOOL_CALLS` | 25 | Cap on paid tool calls per run. |
+| `SWARM_DURATION_SEC`, `SWARM_DELAY_MS` | 120, `500-2000` | How long the swarm runs, and the pause between one agent's contributions. |
+
+With `DRY_RUN=true` and no key, `npm run lisa` uses a scripted stand-in — clearly
+labelled, not an LLM — so the payment path can be exercised without an API key.
+With `DRY_RUN=false` a real key is required and the scripted planner is refused.
 
 ---
 
@@ -153,12 +186,17 @@ Then:
 
 ```bash
 npm run test-pay            # one real contribution, prints the WhatsOnChain link
-npm run lisa                # Phase 6 — in progress
-npm run swarm               # Phase 7 — in progress
-npm run whale               # Phase 7 — in progress
-npm run sybil               # Phase 7 — in progress (all rejected by the tally)
-# Settle the round from the web page — Phase 9, in progress
+npm run lisa                # the LLM agent builds the bakery page, paying per tool call
+npm run swarm               # SWARM_SIZE agents in parallel, weighted towards the small libraries
+npm run whale               # one large payment to tiny-tls
+npm run sybil               # unvouched agents, all rejected by the tally
+npm run demo:check          # pre-flight: keys, budget, UTXOs, tally, wallet
+# then settle the round from the web page
 ```
+
+`swarm`, `whale`, `lisa` and `sybil` each hold their own UTXO file under
+`data/utxos/`, so they are safe to run **at the same time** in separate
+processes.
 
 ### Scripts that exist today
 
@@ -169,6 +207,11 @@ npm run sybil               # Phase 7 — in progress (all rejected by the tally
 | `npm run import-funding <txid>` | Adopt a real funding tx (one WhatsOnChain fetch); outputs matched by locking script. |
 | `npm run test-pay [projectId]` | One contribution from Lisa's agent. |
 | `npm run server` | Tally server. |
+| `npm run lisa` | The LLM agent: builds `data/lisa-bakery.html`, paying per tool call. |
+| `npm run swarm` | `SWARM_SIZE` agents in parallel (`npm run swarm:demo` for 60 s, or `-- --duration <sec>`). |
+| `npm run whale` | One `WHALE_CONTRIBUTION_SATS` payment to `tiny-tls`. |
+| `npm run sybil` | `SYBIL_SIZE` unvouched agents; every one is rejected. |
+| `npm run demo:check` | Pre-flight across keys, budget, UTXOs, tally and the wallet. |
 | `npm run test-tally` | Exercise verification and matching with offline-built transactions (never broadcast). |
 | `npm run web` / `build:web` | Funding page (Vite + React). |
 | `npm test` / `npm run typecheck` | Vitest suite / `tsc --noEmit`. |
@@ -180,7 +223,9 @@ npm run sybil               # Phase 7 — in progress (all rejected by the tally
 Mainnet, real money: **200,000 sats total**. Work down this list in order.
 
 - [ ] `npm test` and `npm run typecheck` pass.
-- [ ] Phases 6, 7 and 9 merged, with the dry run passing end to end (`lisa`, `swarm`, `whale`, `sybil`, settlement preview).
+- [ ] `npm run demo:check` reports **ready**.
+- [ ] The dry run passes end to end: `lisa`, `swarm`, `whale`, `sybil`, settlement preview.
+- [ ] The BEEF failure above is resolved, **or** you are funding by manual Send plus `npm run import-funding <txid>`.
 - [ ] `keys/` exists and is **backed up** somewhere safe. Don't run `npm run keys -- --force` after funding.
 - [ ] `git status` shows no `keys/`, `data/` or `.env`.
 - [ ] `.env` amounts reviewed. `GET /health` returns the full budget, and `committed ≤ TOTAL_BUDGET_SATS`.
@@ -200,13 +245,23 @@ Mainnet, real money: **200,000 sats total**. Work down this list in order.
 ## Repository layout
 
 ```
-shared/   budget guard, runtime (DRY_RUN), projects, quadratic matching, OP_RETURN tag, owner attestations
-server/   Express tally server: funding plan, attestations, contribution verification, /tally, /pledge, SSE /events
-agents/   keys, seed-agents, import-funding, test-pay, test-tally, lib/contribute.ts (contribute + paidTool)
-web/      Vite + React page: connect BSV Desktop, fund agents, vouch for Lisa's agent
+shared/   budget guard, runtime (DRY_RUN), projects, quadratic matching, OP_RETURN tag,
+          owner attestations, settlement (shared by the server and the browser)
+server/   Express tally server: funding plan, attestations, contribution verification,
+          /tally, /pledge, settlement routes, SSE /events
+agents/   keys, seed-agents, import-funding, test-pay, test-tally, lisa, swarm, whale, sybil
+          lib/contribute.ts (contribute + paidTool), lib/utxos.ts (one file per agent)
+          tools/ (the LLM loop, the five library tools, owner lookup)
+web/      Vite + React page: connect BSV Desktop, fund agents, vouch for Lisa, settle
+scripts/  demo-check.ts (npm run demo:check)
 docs/     these docs + bsv-pack/ (the BSV stack guide)
 keys/     generated keys (GITIGNORED)
-data/     funding BEEF, UTXOs, contributions, pool (GITIGNORED)
+data/     funding BEEF, utxos/<agent>.json, contributions, pool, Lisa's page (GITIGNORED)
 ```
+
+`shared/settlement.ts` is browser-safe and used by **both** sides: the server
+builds the settlement preview with it, and the web panel rebuilds the outputs
+from the results JSON with the same code, so the browser never signs a locking
+script it merely received from the server.
 
 Built for the TUM Blockchain & AI Hackathon 2026 (BSV track). The five projects are **demos** named after the incidents above. They aren't the real packages, and their keys are ours.

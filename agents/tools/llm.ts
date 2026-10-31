@@ -4,7 +4,11 @@
  * Settings come from .env:
  *   LLM_PROVIDER   anthropic | openai   (default: anthropic)
  *   LLM_API_KEY    the provider's API key — never printed, never logged
- *   LLM_MODEL      optional model override
+ *   LLM_MODEL      optional model override (default: see DEFAULT_MODELS)
+ *
+ * These three names are the only ones read. Provider-specific aliases such as
+ * ANTHROPIC_API_KEY are not accepted, so there is exactly one place to look
+ * when Lisa runs on the wrong model or cannot authenticate.
  *
  * Both providers are called over plain HTTPS with `fetch`. This session may not
  * add dependencies to the workspace (see NOTES-phase6-lisa.md); swapping in the
@@ -28,7 +32,7 @@ export interface LlmConfig {
 }
 
 export const DEFAULT_MODELS: Record<Exclude<ProviderName, 'scripted'>, string> = {
-  anthropic: 'claude-opus-5-5',
+  anthropic: 'claude-sonnet-5-5',
   openai: 'gpt-5'
 }
 
@@ -55,11 +59,10 @@ export function loadLlmConfig(env: Env, opts: { dryRun: boolean }): LlmConfig {
     return { provider, apiKey: '', model: 'scripted', baseUrl: '', reason: 'LLM_PROVIDER=scripted' }
   }
 
-  // LLM_API_KEY is the documented setting; the provider-specific names are
-  // accepted too because earlier .env files used ANTHROPIC_API_KEY.
-  const apiKey =
-    clean(env.LLM_API_KEY) ||
-    (provider === 'anthropic' ? clean(env.ANTHROPIC_API_KEY) : clean(env.OPENAI_API_KEY))
+  // One name for every provider. Provider-specific names (ANTHROPIC_API_KEY,
+  // OPENAI_API_KEY) are deliberately NOT read: two ways to set the same thing
+  // is how a .env ends up running a model nobody chose.
+  const apiKey = clean(env.LLM_API_KEY)
 
   if (apiKey === '') {
     if (opts.dryRun) {
@@ -74,10 +77,7 @@ export function loadLlmConfig(env: Env, opts: { dryRun: boolean }): LlmConfig {
     throw new LlmError('LLM_API_KEY is empty. Set it in .env (it is gitignored) to run Lisa live.')
   }
 
-  const model =
-    clean(env.LLM_MODEL) ||
-    (provider === 'anthropic' ? clean(env.ANTHROPIC_MODEL) : clean(env.OPENAI_MODEL)) ||
-    DEFAULT_MODELS[provider]
+  const model = clean(env.LLM_MODEL) || DEFAULT_MODELS[provider]
 
   return {
     provider,
