@@ -1,0 +1,14 @@
+{
+  "name": "@upstream/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Types, project registry and quadratic matching shared by server, agents and web.",
+  "exports": {
+    ".": "./index.ts",
+    "./projects.json": "./projects.json"
+  },
+  "dependencies": {
+    "@bsv/sdk": "3.2.1"
+  }
+}

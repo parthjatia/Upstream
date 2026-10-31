@@ -1,0 +1,11 @@
+{
+  "name": "@upstream/agents",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Paying agents: Lisa (LLM), the swarm, the whale and the sybil attacker.",
+  "dependencies": {
+    "@bsv/sdk": "3.2.1",
+    "@upstream/shared": "*"
+  }
+}

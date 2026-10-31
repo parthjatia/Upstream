@@ -1,0 +1,17 @@
+{
+  "name": "@upstream/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tally server: verifies contributions, runs quadratic matching, streams events.",
+  "dependencies": {
+    "@bsv/sdk": "3.2.1",
+    "@upstream/shared": "*",
+    "cors": "^2.8.5",
+    "express": "^5.3.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.6"
+  }
+}
