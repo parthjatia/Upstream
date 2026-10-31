@@ -65,6 +65,7 @@ app.get('/health', (_req, res) => {
   res.json({
     ok: true,
     service: 'upstream-server',
+    dryRun: runtime.dryRun,
     round: ROUND,
     network: NETWORK,
     phase: 9,

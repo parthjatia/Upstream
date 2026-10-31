@@ -6,9 +6,9 @@ import type {
 } from '@upstream/shared/funding'
 import type { AgentAttestation } from '@upstream/shared/attestation'
 
-const BASE = import.meta.env.VITE_SERVER_URL ?? 'http://localhost:8787'
+export const BASE = import.meta.env.VITE_SERVER_URL ?? 'http://localhost:8787'
 
-async function call<T>(path: string, init?: RequestInit): Promise<T> {
+export async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers: init?.body ? { 'content-type': 'application/json' } : undefined
@@ -32,6 +32,7 @@ export interface Health {
   round: string
   network: string
   phase: number
+  dryRun?: boolean
 }
 
 export interface LisaAgent {

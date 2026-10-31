@@ -1,0 +1,255 @@
+.wallet-panel {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding-block: 3rem;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+.wallet-panel h1 {
+  margin: 0 0 0.5rem;
+  font-size: 2.5rem;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+}
+
+.wallet-panel h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--fg);
+}
+
+.wallet-panel .tagline {
+  margin: 0 0 2.5rem;
+  color: var(--muted);
+  line-height: 1.6;
+  max-width: 38rem;
+}
+
+.wallet-panel section {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.wallet-panel p {
+  line-height: 1.6;
+}
+
+.wallet-panel .muted {
+  color: var(--muted);
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+}
+
+.wallet-panel .ok {
+  color: var(--ok);
+}
+
+.wallet-panel .bad {
+  color: var(--bad);
+}
+
+.wallet-panel button {
+  font: inherit;
+  font-weight: 600;
+  padding: 0.55rem 1.1rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--line);
+  background: #f3f5f9;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.wallet-panel button:hover:not(:disabled) {
+  border-color: #38405a;
+}
+
+.wallet-panel button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.wallet-panel button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.wallet-panel button.danger {
+  background: #3b1d1d;
+  border-color: #6b2c2c;
+  color: #ffd9d9;
+}
+
+.wallet-panel dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.5rem 1.25rem;
+  margin: 0 0 1.25rem;
+  font-size: 0.9rem;
+}
+
+.wallet-panel dt {
+  color: var(--muted);
+}
+
+.wallet-panel dd {
+  margin: 0;
+}
+
+.wallet-panel .mono,
+.wallet-panel code {
+  font-family: ui-monospace, 'Cascadia Code', Menlo, monospace;
+}
+
+.wallet-panel .wrap {
+  overflow-wrap: anywhere;
+}
+
+.wallet-panel .small {
+  font-size: 0.8rem;
+}
+
+.wallet-panel .num {
+  text-align: right;
+}
+
+.wallet-panel .scroll {
+  overflow-x: auto;
+}
+
+.wallet-panel table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.wallet-panel th,
+.wallet-panel td {
+  text-align: left;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.wallet-panel th {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.wallet-panel .record {
+  margin-bottom: 1.5rem;
+}
+
+.wallet-panel .record p {
+  font-size: 0.9rem;
+}
+
+.wallet-panel .log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.9rem;
+}
+
+.wallet-panel .log li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.wallet-panel .log li:last-child {
+  border-bottom: none;
+}
+
+.wallet-panel a {
+  color: var(--accent);
+}
+
+.wallet-panel footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 0.8rem;
+  padding-top: 0.5rem;
+}
+
+.wallet-panel details {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.wallet-panel summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.wallet-panel pre {
+  margin: 0.5rem 0 0;
+  padding: 0.75rem;
+  background: #05060a;
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, 'Cascadia Code', Menlo, monospace;
+  font-size: 0.78rem;
+  color: #cfd4e0;
+  max-height: 24rem;
+}
+
+.wallet-panel .diagnosis {
+  margin-top: 0.75rem;
+  padding: 0.9rem 1rem;
+  background: #1a0f0f;
+  border: 1px solid #6b2c2c;
+  border-radius: 0.4rem;
+  color: var(--fg);
+}
+
+.wallet-panel .diagnosis-title {
+  margin: 0 0 0.6rem;
+  font-weight: 600;
+  color: #ffb4b4;
+  font-size: 0.95rem;
+}
+
+.wallet-panel pre.exact {
+  margin: 0 0 0.75rem;
+  background: #05060a;
+  border-color: #6b2c2c;
+  color: #ffd9d9;
+  font-size: 0.82rem;
+  max-height: none;
+}
+
+.wallet-panel .diagnosis-meaning,
+.wallet-panel .diagnosis-side {
+  margin: 0 0 0.6rem;
+  font-size: 0.85rem;
+  color: #d8d2d2;
+}
+
+.wallet-panel .diagnosis-side {
+  font-weight: 600;
+  color: #ffcf4a;
+}
+
+.wallet-panel .diagnosis-try {
+  margin: 0;
+  padding-left: 1.3rem;
+  font-size: 0.85rem;
+  color: #d8d2d2;
+}
+
+.wallet-panel .diagnosis-try li {
+  margin-bottom: 0.4rem;
+}
