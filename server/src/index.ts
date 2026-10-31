@@ -35,6 +35,8 @@ import {
 } from './contributions.ts'
 import { addClient, clientCount, emit } from './events.ts'
 import { ensureDataDir } from './store.ts'
+import { ArcadeChainTracker } from './chainTracker.ts'
+import { paymentRouter } from './paymentRuns.ts'
 import { settlementRouter } from './settlementRoutes.ts'
 
 // Fail fast on a bad .env rather than part-way through a mainnet transaction.
@@ -77,6 +79,8 @@ app.get('/health', (_req, res) => {
   })
 })
 
+app.use('/agent-payments', paymentRouter(runtime, budget))
+
 /* ------------------------------------------------------------------ Phase 3 */
 
 /**
@@ -110,7 +114,7 @@ app.get('/funding-plan', (req, res) => {
  * The AtomicBEEF is saved to `data/` and every output index is resolved to its
  * agent by locking script.
  */
-app.post('/funding', (req, res) => {
+app.post('/funding', async (req, res) => {
   const { scope, txid, beefHex } = (req.body ?? {}) as Record<string, unknown>
 
   if (!isScope(scope)) {
@@ -133,6 +137,9 @@ app.post('/funding', (req, res) => {
       return
     }
 
+    if (!(await tx.verify(new ArcadeChainTracker(runtime.arcadeUrl)))) {
+      throw new Error('Funding BEEF failed SPV verification. No agent funding was imported.')
+    }
     const targets = fundingTargets(keysOrFail(), budget, scope)
     const record = recordFunding({
       scope,
@@ -319,7 +326,7 @@ function emitTally(): void {
   emit({ type: 'tally', pool: result.pool, rows: result.rows })
 }
 
-app.listen(PORT, () => {
+app.listen(PORT, '127.0.0.1', () => {
   console.log(`upstream server listening on http://localhost:${PORT}  (round ${ROUND}, ${NETWORK})`)
   console.log(`agents report to ${runtime.serverUrl} (SERVER_URL)`)
   console.log(`matching pool ${pool()} sats · ${allContributions().length} contribution(s) recorded`)

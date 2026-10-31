@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import { parseResults, type RoundResults } from '@upstream/shared/settlement'
 import type { UpstreamEvent } from '@upstream/shared'
-import type { Tally } from '../../server/src/contributions'
+import type { StoredContribution, Tally } from '../../server/src/contributions'
 import { BASE, call, getHealth, type Health } from './api'
 import type { Activity } from './dashboardModel'
 
@@ -11,6 +12,10 @@ export function useFundingStream(enabled: boolean) {
   const [status, setStatus] = useState<'connecting' | 'connected' | 'offline'>(
     'connecting'
   )
+  const [settlement, setSettlement] = useState<{
+    txid: string
+    results: RoundResults
+  } | null>(null)
   const [settled, setSettled] = useState<string | null>(null)
   useEffect(() => {
     if (!enabled) return
@@ -22,6 +27,7 @@ export function useFundingStream(enabled: boolean) {
     setHealth(null)
     setFeed([])
     setSettled(null)
+    setSettlement(null)
     setStatus('connecting')
     // Reconcile the authoritative totals instead of incrementing SSE replays.
     const refresh = async () => {
@@ -31,10 +37,43 @@ export function useFundingStream(enabled: boolean) {
       }
       running = true
       try {
-        const [t, h] = await Promise.all([call<Tally>('/tally'), getHealth()])
+        const [t, h, history, settlements] = await Promise.all([
+          call<Tally>('/tally'),
+          getHealth(),
+          call<{ contributions: StoredContribution[] }>('/contribution'),
+          call<Array<{ round: string; txid: string; resultsJson: string }>>(
+            '/settlement'
+          )
+        ])
         if (active) {
           setTally(t)
           setHealth(h)
+          const record = settlements.find((s) => s.round === t.round)
+          setSettlement(
+            record
+              ? { txid: record.txid, results: parseResults(record.resultsJson) }
+              : null
+          )
+          setSettled(record?.txid ?? null)
+          const receipts: Activity[] = history.contributions
+            .filter((c) => c.round === t.round)
+            .slice(-30)
+            .reverse()
+            .map((c) => ({
+              id: `contribution-${c.txid}`,
+              project: c.project,
+              label: `Owner ${c.owner.slice(0, 6)}…`,
+              source: 'swarm',
+              sats: c.sats,
+              dryRun: c.dryRun !== false,
+              txid: c.txid
+            }))
+          setFeed((previous) =>
+            [
+              ...receipts,
+              ...previous.filter((e) => e.source === 'rejected')
+            ].slice(0, 30)
+          )
           if (streamOpen) setStatus('connected')
         }
       } catch {
@@ -99,5 +138,5 @@ export function useFundingStream(enabled: boolean) {
       window.clearInterval(poll)
     }
   }, [enabled])
-  return { tally, health, feed, status, settled }
+  return { tally, health, feed, status, settled, settlement }
 }

@@ -15,6 +15,7 @@ import {
   type FundingSummary,
   type FundingTarget
 } from '@upstream/shared/funding'
+import { getUtxo, putUtxo } from '../../agents/lib/utxos.ts'
 import { dataPath, readJson, repoRelative, writeJson, writeText } from './store.ts'
 
 const RECORDS = (): string => dataPath('funding.json')
@@ -111,6 +112,18 @@ export function recordFunding(args: {
     beefPath: repoRelative(beefFile)
   }
 
+  // Make wallet funding usable by the exact same contribution path as CLI imports.
+  // Never replace a newer real change output when another funding receipt arrives.
+  for (const output of outputs) {
+    const prior = getUtxo(output.label)
+    if (prior && !prior.synthetic) continue
+    putUtxo({
+      agent: output.label, txid, vout: output.index, satoshis: output.satoshis,
+      lockingScriptHex: tx.outputs[output.index]!.lockingScript.toHex(),
+      sourceTxHex: tx.toHex(), synthetic: false, origin: 'funding-import',
+      updatedAt: record.createdAt
+    })
+  }
   writeJson(RECORDS(), [...allRecords(), record])
   return record
 }

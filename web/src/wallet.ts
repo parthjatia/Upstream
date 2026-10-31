@@ -121,6 +121,9 @@ export async function fundAgents(
     )
   }
 
+  if (result?.sendWithResults?.some(r => r.txid === result.txid && r.status === 'failed')) {
+    throw new WalletCallError('The wallet reported a failed broadcast. Check BSV Desktop before retrying.', null, exchanges)
+  }
   if (!result?.txid || !result.tx) {
     throw new WalletCallError(
       `The wallet returned no transaction.\nresult: ${JSON.stringify(result)}`,

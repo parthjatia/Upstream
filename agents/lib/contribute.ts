@@ -12,6 +12,7 @@
  * computed, the agent really signs, and the SDK really checks the result.
  */
 import {
+  ARC,
   P2PKH,
   PrivateKey,
   ProtoWallet,
@@ -26,10 +27,10 @@ import { contributionScript } from '@upstream/shared/opreturn'
 import { findProject } from '@upstream/shared/projects'
 import type { Budget } from '@upstream/shared/budget'
 import type { Runtime } from '@upstream/shared/runtime'
-import { getUtxo, putUtxo, sourceTransaction, type AgentUtxo } from './utxos.ts'
+import { dropUtxo, getUtxo, putUtxo, sourceTransaction, type AgentUtxo } from './utxos.ts'
 
-/** Satoshis per kilobyte. BSV fees are tiny; 1 sat/kB covers a 250-byte tx. */
-export const FEE_RATE = 1
+/** Satoshis per kilobyte; matches the mainnet mining policy reported by Arcade. */
+export const FEE_RATE = 100
 
 /** Below this a change output costs more to make than it is worth. */
 export const DUST_LIMIT = 1
@@ -92,6 +93,9 @@ export async function contribute(
           ? 'Run `npm run seed-agents` to give the agents dry-run coins.'
           : 'Fund the agents first, or run `npm run import-funding <txid>`.')
     )
+  }
+  if (!runtime.dryRun && utxo.synthetic) {
+    throw new ContributeError('Synthetic funding cannot be spent in live mode. Fund the agent with real BSV first.')
   }
   if (utxo.satoshis <= amount) {
     throw new ContributeError(
@@ -157,6 +161,8 @@ export async function contribute(
       updatedAt: new Date().toISOString()
     })
   }
+
+  if (change <= DUST_LIMIT) dropUtxo(req.agentLabel)
 
   const attestation = await resolveAttestation(req)
   const report = await reportContribution(
@@ -233,14 +239,24 @@ export function assertSpendable(tx: Transaction, utxo: AgentUtxo): void {
  * Only reached when DRY_RUN is false.
  */
 export async function broadcastToArcade(tx: Transaction, runtime: Runtime): Promise<void> {
-  const res = await fetch(`${runtime.arcadeUrl}/tx`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ rawTx: tx.toHexEF() })
-  })
-  const text = await res.text()
-  if (!res.ok) {
-    throw new ContributeError(`Arcade refused ${tx.id('hex')} (${res.status}): ${text.slice(0, 300)}`)
+  // ARC validates status and txid; Arcade exposes /tx rather than ARC's /v1/tx.
+  const result = await new ARC(runtime.arcadeUrl, {
+    httpClient: {
+      request: async (_url, options) => {
+        const response = await fetch(`${runtime.arcadeUrl}/tx`, {
+          method: options.method,
+          headers: options.headers,
+          body: JSON.stringify(options.data)
+        })
+        return {
+          ok: response.ok, status: response.status, statusText: response.statusText,
+          data: await response.json()
+        }
+      }
+    }
+  }).broadcast(tx)
+  if (result.status !== 'success') {
+    throw new ContributeError(`Arcade refused ${tx.id('hex')} (${result.code}): ${result.description}`)
   }
 }
 

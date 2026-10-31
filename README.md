@@ -37,7 +37,7 @@ AI agents now pull in open-source code more than people do, and they pay nothing
 
 - **A wallet is just a key.** An agent can create its own wallet in microseconds: generate a private key and you have an address. No account, no KYC, no sign-up.
 - **Maintainers publish an address.** A maintainer would put a BSV address in their `package.json` `funding` field, and any agent that installs the package knows where to pay. (In this demo the five project addresses live in `shared/projects.json`. See [DEVFOLIO.md](docs/DEVFOLIO.md#maintainers-publish-an-address).)
-- **10-satoshi payments make sense.** A contribution transaction is about 250 bytes, and the fee at 1 sat/kB is a fraction of a cent. Agents chain unconfirmed transactions, using the change of one payment as the input of the next, so one funding output is enough for hundreds of payments.
+- **10-satoshi payments make sense.** A contribution transaction is about 250 bytes, and agents use a 100 sat/kB fee rate, matching the mainnet mining policy reported by Arcade during verification. Agents chain unconfirmed transactions, using the change of one payment as the input of the next, so one funding output is enough for hundreds of payments.
 
 ## Status
 
@@ -50,28 +50,39 @@ AI agents now pull in open-source code more than people do, and they pay nothing
 | 5 | Tally server: verification, quadratic matching, pledge, SSE | done |
 | 6 | Lisa's agent: an LLM with tool calling that pays per tool use | done |
 | 7 | Swarm, whale and Sybil attacker scripts | done |
-| 8 | **Galaxy UI** (d3-force bubbles, live particles) | **not started** |
+| 8 | Backend-driven wallet, agent payment controls, project totals and receipts | done |
 | 9 | Settlement (one-click from BSV Desktop) and `npm run demo:check` | done |
 | 10 | Docs | this |
 
-Everything except the galaxy UI is built, and the whole demo runs end to end with
-`DRY_RUN=true`. Phase 8 is the one piece not started: the `/events` SSE stream
-already emits `contribution`, `rejected`, `tally` and `settled`, so the galaxy has
-a live feed to animate whenever it gets built.
+The web page shows only backend state. It has three steps:
 
-**Funding from the wallet is blocked.** BSV Desktop accepts the funding request
-and shows the right amount, then fails after approval with:
+1. Connect BSV Desktop and review the funding transaction (102,000 sats by default,
+   plus the wallet fee). The wallet signs and broadcasts; the server verifies the
+   BEEF with SPV and makes the outputs available to the agents.
+2. Pick a project and run one payment per swarm agent (50 separate transactions
+   of 10 sats by default, plus fees). This uses the existing `contribute` path.
+   Lisa's single-payment control is under the expandable details and requires
+   her owner's wallet signature.
+3. Review the quadratic allocation and pay the matching pool from BSV Desktop.
+   The page refuses settlement while the server or any counted contributions
+   are in dry-run mode.
 
-```
-WERR_INTERNAL: Storage method processAction failed: merged Beef failed validation
-```
+Funding and settlement use BRC-100 `createAction`. BSV Desktop controls spending
+permission prompts; an existing spending grant may let it process a request
+without asking again. To review every large payment, remove the app's existing
+spending grant in BSV Desktop. The app cannot force the wallet's permission UI.
 
-That is raised inside the wallet, while it assembles the BEEF for the inputs *it*
-is spending — its own funds, not our outputs — so nothing in this app can work
-around it, and nothing is broadcast. The web page shows the message verbatim with
-what to try. Until it is resolved, fund with a manual Send plus
-`npm run import-funding <txid>`, or stay in dry-run. See
-[Going live](#going-live-checklist).
+Agent payment controls are local-only, require an allowed browser origin and a
+session token, reject concurrent runs, and deduplicate retried request IDs.
+The default web origins are `http://localhost:5173` and `http://127.0.0.1:5173`;
+set `UPSTREAM_WEB_ORIGIN` for another local UI origin. The server binds to loopback.
+Do not run CLI agents against the same wallets while a UI payment batch runs.
+Receipts survive page reloads through the contribution history endpoint.
+
+A previous wallet attempt failed with `merged Beef failed validation`. The app
+still surfaces wallet failures and does not count an error response as a payment.
+Automated checks use mock broadcasts; successful mainnet funding and settlement
+must be verified after the user approves them in BSV Desktop.
 
 ---
 
@@ -172,13 +183,14 @@ npm run server
 npm run web                 # http://localhost:5173
 ```
 
-In the web page (all signing happens in BSV Desktop; the page never asks for a key):
+In the web page (funding and settlement signing happen in BSV Desktop; agent payments use their local agent wallets):
 
-1. **Wallet**: connect BSV Desktop and check that it says `mainnet`.
-2. **Wallet actions**: look for unfinished funding actions before spending.
-3. **Smoke test**: fund Lisa's agent alone (`FUND_LISA_SATS`).
-4. **Full fan-out**: one transaction, one P2PKH output per agent (102,000 sats over 62 outputs by default). The server saves the AtomicBEEF to `data/` and maps each output to its agent by locking script.
-5. **Vouch for Lisa's agent**: BSV Desktop signs her agent's public key with your identity key.
+1. Connect BSV Desktop on mainnet.
+2. Review and approve funding. Expand **Funding details and recovery** for the
+   Lisa-only smoke test and unfinished wallet actions.
+3. Select a project and run the agent payments. Expand **Single payment from Lisa**
+   to sign her owner attestation and send one payment instead.
+4. Review matching, then approve settlement in BSV Desktop.
 
 If you funded with a manual Send instead, run `npm run import-funding <txid>`.
 
@@ -233,10 +245,10 @@ Mainnet, real money: **200,000 sats total**. Work down this list in order.
 - [ ] BSV Desktop installed, on **mainnet**, with enough balance for funding + pool + fees.
 - [ ] Clear the dry-run state: move `data/` aside (synthetic UTXOs, dry-run contributions and simulated owners should not mix with the live round). Real imported outputs always win over synthetic ones, but a clean `data/` keeps the tally honest. *(Or bump `ROUND`. The tally only counts contributions for the current round.)*
 - [ ] Set `DRY_RUN=false` and restart the server.
-- [ ] Web page step 3: smoke-test with Lisa only, then check the tx on WhatsOnChain.
-- [ ] Web page step 5: vouch for Lisa's agent (BSV Desktop signature).
+- [ ] Web page funding details: smoke-test with Lisa only, then check the tx on WhatsOnChain.
+- [ ] Web page single-payment details: vouch for Lisa's agent (BSV Desktop signature).
 - [ ] `npm run test-pay`: one real contribution, check it on WhatsOnChain and in `/tally`.
-- [ ] Web page step 4: full fan-out, then check it on WhatsOnChain.
+- [ ] Web page funding section: full fan-out, then check it on WhatsOnChain.
 - [ ] Run the agents, then settle.
 - [ ] Paste every txid into [docs/tx-links.md](docs/tx-links.md).
 

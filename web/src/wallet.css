@@ -253,3 +253,47 @@
 .wallet-panel .diagnosis-try li {
   margin-bottom: 0.4rem;
 }
+
+/* The wallet is the main flow, not a second dashboard in a modal. */
+.wallet-panel {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+.wallet-panel section {
+  border-radius: 10px;
+  padding: 24px;
+  margin-bottom: 16px;
+}
+.wallet-panel h2 {
+  font-size: 17px;
+  letter-spacing: 0;
+}
+.wallet-panel details {
+  margin-top: 16px;
+}
+.wallet-panel button {
+  font-size: 13px;
+}
+.wallet-panel .muted {
+  font-size: 13px;
+  margin: 12px 0;
+}
+.wallet-panel .controls {
+  margin: 14px 0;
+}
+.wallet-panel .diagnosis {
+  background: #fff5f5;
+  color: var(--fg);
+}
+.wallet-panel .diagnosis-title,
+.wallet-panel .diagnosis-meaning,
+.wallet-panel .diagnosis-side,
+.wallet-panel .diagnosis-try {
+  color: var(--bad);
+}
+@media (max-width: 640px) {
+  .wallet-panel section {
+    padding: 18px;
+  }
+}
