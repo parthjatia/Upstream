@@ -20,6 +20,7 @@ import {
   type Health,
   type LisaAgent
 } from './api'
+import { diagnoseWalletError, type Diagnosis } from './walletDiagnosis'
 import {
   WalletCallError,
   attestAgent,
@@ -38,6 +39,7 @@ interface LogLine {
   txid?: string
   bad?: boolean
   detail?: string
+  diagnosis?: Diagnosis
 }
 
 export function App() {
@@ -59,7 +61,7 @@ export function App() {
     (what: string, e: unknown) => {
       if (e instanceof WalletCallError) {
         console.error(`${what}\n${e.detail}`)
-        say(`${what}: ${e.message}`, { bad: true, detail: e.detail })
+        say(what, { bad: true, detail: e.detail, diagnosis: diagnoseWalletError(e.message, e.exchanges, e.detail) })
       } else {
         const msg = (e as Error).message
         console.error(what, e)
@@ -385,6 +387,7 @@ export function App() {
                   </a>
                 </>
               )}
+              {l.diagnosis !== undefined && <DiagnosisCard d={l.diagnosis} />}
               {l.detail !== undefined && (
                 <details>
                   <summary>Full wallet response</summary>
@@ -405,5 +408,29 @@ export function App() {
         </span>
       </footer>
     </main>
+  )
+}
+
+/** A wallet failure, with the wallet's exact words first. */
+function DiagnosisCard({ d }: { d: Diagnosis }) {
+  return (
+    <div className="diagnosis">
+      <p className="diagnosis-title">{d.title}</p>
+      <pre className="exact">{d.exact}</pre>
+      <p className="diagnosis-meaning">{d.meaning}</p>
+      <p className="diagnosis-side">
+        {d.side === 'wallet' && 'This is a wallet-side failure. Nothing in this app can avoid it.'}
+        {d.side === 'app' && 'This is our bug, not the wallet’s.'}
+        {d.side === 'unknown' && 'Which side is at fault is not yet clear.'}
+        {d.nothingSent
+          ? ' Nothing was broadcast, so retrying cannot double-spend.'
+          : ' Check the explorer before retrying — a transaction may exist.'}
+      </p>
+      <ol className="diagnosis-try">
+        {d.tryThis.map(t => (
+          <li key={t}>{t}</li>
+        ))}
+      </ol>
+    </div>
   )
 }

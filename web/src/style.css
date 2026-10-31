@@ -224,3 +224,51 @@ pre {
   color: #cfd4e0;
   max-height: 24rem;
 }
+
+.diagnosis {
+  margin-top: 0.75rem;
+  padding: 0.9rem 1rem;
+  background: #1a0f0f;
+  border: 1px solid #6b2c2c;
+  border-radius: 0.4rem;
+  color: var(--fg);
+}
+
+.diagnosis-title {
+  margin: 0 0 0.6rem;
+  font-weight: 600;
+  color: #ffb4b4;
+  font-size: 0.95rem;
+}
+
+pre.exact {
+  margin: 0 0 0.75rem;
+  background: #05060a;
+  border-color: #6b2c2c;
+  color: #ffd9d9;
+  font-size: 0.82rem;
+  max-height: none;
+}
+
+.diagnosis-meaning,
+.diagnosis-side {
+  margin: 0 0 0.6rem;
+  font-size: 0.85rem;
+  color: #d8d2d2;
+}
+
+.diagnosis-side {
+  font-weight: 600;
+  color: #ffcf4a;
+}
+
+.diagnosis-try {
+  margin: 0;
+  padding-left: 1.3rem;
+  font-size: 0.85rem;
+  color: #d8d2d2;
+}
+
+.diagnosis-try li {
+  margin-bottom: 0.4rem;
+}
